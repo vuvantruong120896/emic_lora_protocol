@@ -1,0 +1,6 @@
+-MAKEUD="D:\Projects\Emic\LoraSafe\Core\EMIC_LORA_PROTOCOL\HardwareDebug\\EMIC_LORA_PROTOCOL_c.ud" 
+-form=stype 
+-output="EMIC_LORA_PROTOCOL.mot" 
+-byte_count=10 
+-nomessage 
+-nologo

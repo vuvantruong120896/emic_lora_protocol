@@ -1,0 +1,1550 @@
+Renesas Optimizing Linker (V3.07.00 )             29-Dec-2025 13:52:20
+
+*** Options ***
+
+-subcommand=LinkerEMIC_LORA_PROTOCOL.tmp
+-MAKEUD="D:\Projects\Emic\LoraSafe\Core\EMIC_LORA_PROTOCOL\HardwareDebug/EMIC_LORA_PROTOCOL_l.ud" 
+-device="C:/Users/vuvan/.eclipse/com.renesas.platform_1435879475/DebugComp/RL78/RL78/Common/DR7F100GGG.DVF" 
+-list 
+-show=symbol 
+-nooptimize 
+-entry=_start 
+-auto_section_layout 
+-security_id=00000000000000000000 
+-debug_monitor=1FE00-1FFFF 
+-user_opt_byte=EF3AEA 
+-ocdbg=84 
+-ocdtr 
+-input=".\src/smc_gen/r_bsp/board/generic_rl78_g23\stkinit.obj"
+-input=".\src/smc_gen/r_bsp/mcu/all\cstart.obj"
+-input=".\src/smc_gen/r_bsp/mcu/all\r_bsp_common_ccrl.obj"
+-input=".\src\EMIC_LORA_PROTOCOL.obj"
+-input=".\src/hal\hal_gpio.obj"
+-input=".\src/hal\hal_rtc.obj"
+-input=".\src/hal\hal_spi.obj"
+-input=".\src/hal\hal_systick.obj"
+-input=".\src/hal\hal_timer.obj"
+-input=".\src/hal\hal_uart.obj"
+-input=".\src/mac\lora_mac.obj"
+-input=".\src/phy\sx1262_config.obj"
+-input=".\src/phy\sx1262_rx.obj"
+-input=".\src/phy\sx1262_tx.obj"
+-input=".\src/phy\sx126x.obj"
+-input=".\src/phy\sx126x_board.obj"
+-input=".\src/smc_gen/Config_CSI20\Config_CSI20.obj"
+-input=".\src/smc_gen/Config_CSI20\Config_CSI20_user.obj"
+-input=".\src/smc_gen/Config_INTC\Config_INTC.obj"
+-input=".\src/smc_gen/Config_INTC\Config_INTC_user.obj"
+-input=".\src/smc_gen/Config_PORT\Config_PORT.obj"
+-input=".\src/smc_gen/Config_PORT\Config_PORT_user.obj"
+-input=".\src/smc_gen/Config_RTC\Config_RTC.obj"
+-input=".\src/smc_gen/Config_RTC\Config_RTC_user.obj"
+-input=".\src/smc_gen/Config_TAU0_0\Config_TAU0_0.obj"
+-input=".\src/smc_gen/Config_TAU0_0\Config_TAU0_0_user.obj"
+-input=".\src/smc_gen/Config_TAU0_1\Config_TAU0_1.obj"
+-input=".\src/smc_gen/Config_TAU0_1\Config_TAU0_1_user.obj"
+-input=".\src/smc_gen/Config_UARTA1\Config_UARTA1.obj"
+-input=".\src/smc_gen/Config_UARTA1\Config_UARTA1_user.obj"
+-input=".\src/smc_gen/general\r_cg_rtc_common.obj"
+-input=".\src/smc_gen/general\r_cg_sau_common.obj"
+-input=".\src/smc_gen/general\r_cg_systeminit.obj"
+-input=".\src/smc_gen/general\r_cg_tau_common.obj"
+-input=".\src/smc_gen/general\r_cg_uarta_common.obj"
+-input=".\src/smc_gen/r_bsp/board/generic_rl78_g23\hdwinit.obj"
+-input=".\src/smc_gen/r_bsp/board/generic_rl78_g23\r_bsp_init.obj"
+-input=".\src/smc_gen/r_bsp/mcu/all\r_bsp_common.obj"
+-input=".\src/smc_gen/r_bsp/mcu/rl78_g23\mcu_clocks.obj"
+-input=".\src/smc_gen/r_pincfg\Pin.obj"
+-input=".\src/test\test_gpio.obj"
+-input=".\src/test\test_mac.obj"
+-input=".\src/test\test_main.obj"
+-input=".\src/test\test_protocol.obj"
+-input=".\src/test\test_rtc.obj"
+-input=".\src/test\test_spi.obj"
+-input=".\src/test\test_sx126x.obj"
+-input=".\src/test\test_systick.obj"
+-input=".\src/test\test_timer.obj"
+-input=".\src/test\test_uart_debug.obj"
+-input=".\src/test\test_utils.obj"
+-input=".\src/utils\aes128.obj"
+-input=".\src/utils\crc16.obj"
+-input=".\src/utils\log_control.obj"
+-input=".\src/utils\util_system.obj"
+-library=".\EMIC_LORA_PROTOCOL.lib"
+-output="EMIC_LORA_PROTOCOL.abs" 
+-debug 
+-nocompress 
+-memory=high 
+-rom=.data=.dataR,.sdata=.sdataR 
+-nomessage 
+-nologo
+
+*** Error information ***
+
+*** Mapping List ***
+
+SECTION                            START      END         SIZE   ALIGN
+.vect
+                                  00000000  0000007f        80   0
+.init_array
+                                  00000080  00000080         0   2
+.sdata
+                                  00000080  00000080         0   2
+.option_byte
+                                  000000c0  000000c3         4   1
+.security_id
+                                  000000c4  000000cd         a   1
+.RLIB
+                                  000000c4  000000c4         0   1
+.monitor1
+                                  000000ce  000000d7         a   1
+.constf
+                                  000000d8  0000014f        78   2
+.data
+                                  00000150  000001bf        70   2
+.text
+                                  000001c0  00000327       168   1
+.const
+                                  00003000  00006314      3315   2
+.textf
+                                  00006315  0000baf1      57dd   1
+.SLIB
+                                  0000baf2  0000ed48      3257   1
+.monitor2
+                                  0001fe00  0001ffff       200   1
+.bss
+                                  000fbf00  000fc289       38a   2
+.dataR
+                                  000fc28a  000fc2f9        70   2
+.sbss
+                                  000ffe20  000ffe20         0   2
+.sdataR
+                                  000ffe20  000ffe20         0   2
+
+*** Symbol List ***
+
+SECTION=
+FILE=                               START        END    SIZE
+  SYMBOL                            ADDR        SIZE    INFO      COUNTS  OPT
+
+SECTION=.vect
+FILE=rlink_generates_04
+                                  00000000  0000007f        80
+
+SECTION=.option_byte
+FILE=rlink_generates_01
+                                  000000c0  000000c3         4
+
+SECTION=.security_id
+FILE=rlink_generates_03
+                                  000000c4  000000cd         a
+
+SECTION=.monitor1
+FILE=rlink_generates_02
+                                  000000ce  000000d7         a
+
+SECTION=.constf
+FILE=_REL_print
+                                  000000d8  000000eb        14
+FILE=_REL_in_exps
+                                  000000ec  00000127        3c
+  _LOG2E@3@_REL_in_exps
+                                  000000ec         4   data ,l         * 
+  _exp_lcoef@2@_REL_in_exps
+                                  000000f0        1c   data ,l         * 
+  _exp_hcoef@1@_REL_in_exps
+                                  0000010c        1c   data ,l         * 
+FILE=_REL_in_logs
+                                  00000128  0000014f        28
+  _RT2@1@_REL_in_logs
+                                  00000128         4   data ,l         * 
+  _NRT2@2@_REL_in_logs
+                                  0000012c         4   data ,l         * 
+  _log_coef@3@_REL_in_logs
+                                  00000130        20   data ,l         * 
+
+SECTION=.data
+FILE=.\src\hal\hal_rtc.obj
+                                  00000150  00000155         6
+FILE=.\src\hal\hal_systick.obj
+                                  00000156  0000015d         8
+FILE=.\src\hal\hal_timer.obj
+                                  0000015e  0000015e         1
+FILE=.\src\hal\hal_uart.obj
+                                  00000160  00000167         8
+FILE=.\src\mac\lora_mac.obj
+                                  00000168  0000016b         4
+FILE=.\src\phy\sx1262_rx.obj
+                                  0000016c  00000176         b
+FILE=.\src\phy\sx1262_tx.obj
+                                  00000178  0000017d         6
+FILE=.\src\phy\sx126x.obj
+                                  0000017e  00000184         7
+FILE=.\src\phy\sx126x_board.obj
+                                  00000186  00000189         4
+FILE=.\src\test\test_mac.obj
+                                  0000018a  00000191         8
+FILE=.\src\test\test_protocol.obj
+                                  00000192  00000199         8
+FILE=.\src\test\test_rtc.obj
+                                  0000019a  0000019d         4
+FILE=.\src\test\test_sx126x.obj
+                                  0000019e  000001af        12
+FILE=.\src\test\test_systick.obj
+                                  000001b0  000001b3         4
+FILE=.\src\test\test_utils.obj
+                                  000001b4  000001bb         8
+FILE=.\src\utils\log_control.obj
+                                  000001bc  000001bc         1
+FILE=errno
+                                  000001be  000001bf         2
+
+SECTION=.text
+FILE=.\src\smc_gen\r_bsp\mcu\all\cstart.obj
+                                  000001c0  00000236        77
+  _start
+                                  000001c0         0   entry,g         * 
+  _exit
+                                  00000234         0   none ,g         * 
+  _atexit
+                                  00000236         0   none ,g         * 
+FILE=.\src\smc_gen\r_bsp\mcu\all\r_bsp_common_ccrl.obj
+                                  00000237  00000242         c
+  _delay_wait
+                                  00000237         0   none ,g         * 
+  loop
+                                  00000237         0   none ,l         * 
+  check
+                                  0000023e         0   none ,l         * 
+  _exit
+                                  00000242         0   none ,l         * 
+FILE=.\src\smc_gen\Config_CSI20\Config_CSI20_user.obj
+                                  00000243  000002bf        7d
+  _r_Config_CSI20_interrupt@1
+                                  00000243        7d   func ,l         * 
+FILE=.\src\smc_gen\Config_INTC\Config_INTC_user.obj
+                                  000002c0  000002de        1f
+  _r_Config_INTC_intp0_interrupt@1
+                                  000002c0        1d   func ,l         * 
+  _r_Config_INTC_intp8_interrupt@1
+                                  000002dd         2   func ,l         * 
+FILE=.\src\smc_gen\Config_RTC\Config_RTC_user.obj
+                                  000002df  0000030a        2c
+  _r_Config_RTC_interrupt@1
+                                  000002df        2c   func ,l         * 
+FILE=.\src\smc_gen\Config_TAU0_1\Config_TAU0_1_user.obj
+                                  0000030b  00000327        1d
+  _r_Config_TAU0_1_interrupt@1
+                                  0000030b        1d   func ,l         * 
+
+SECTION=.const
+FILE=.\src\hal\hal_rtc.obj
+                                  00003000  0000300b         c
+  _days@3@days_in_month@1
+                                  00003000         c   data ,l         * 
+FILE=.\src\mac\lora_mac.obj
+                                  0000300c  0000322b       220
+  _data_channels@2@mac_select_random_data_channel
+                                  0000320c        20   data ,l         * 
+FILE=.\src\phy\sx1262_config.obj
+                                  0000322c  00003584       359
+  _lora_channels@1
+                                  0000322c        24   data ,l         * 
+FILE=.\src\phy\sx1262_rx.obj
+                                  00003586  000037a0       21b
+FILE=.\src\phy\sx1262_tx.obj
+                                  000037a2  0000393f       19e
+FILE=.\src\phy\sx126x.obj
+                                  00003940  0000397b        3c
+FILE=.\src\smc_gen\r_bsp\mcu\rl78_g23\mcu_clocks.obj
+                                  0000397c  000039cb        50
+  _g_fih_hz
+                                  0000397c        40   data ,g         * 
+  _g_fim_hz
+                                  000039bc        10   data ,g         * 
+FILE=.\src\test\test_mac.obj
+                                  000039cc  000040b2       6e7
+FILE=.\src\test\test_main.obj
+                                  000040b4  000042c6       213
+FILE=.\src\test\test_protocol.obj
+                                  000042c8  00004920       659
+FILE=.\src\test\test_sx126x.obj
+                                  00004922  000055db       cba
+FILE=.\src\test\test_uart_debug.obj
+                                  000055dc  0000598a       3af
+FILE=.\src\test\test_utils.obj
+                                  0000598c  00006143       7b8
+FILE=.\src\utils\aes128.obj
+                                  00006144  000062c9       186
+FILE=.\src\utils\log_control.obj
+                                  000062ca  00006314        4b
+
+SECTION=.textf
+FILE=.\src\smc_gen\r_bsp\board\generic_rl78_g23\stkinit.obj
+                                  00006315  00006358        44
+  _stkinit
+                                  00006315         0   none ,g         * 
+  LSTINIT1
+                                  00006323         0   none ,l         * 
+  LSTINIT2
+                                  0000634d         0   none ,l         * 
+  LSTINIT3
+                                  00006358         0   none ,l         * 
+FILE=.\src\EMIC_LORA_PROTOCOL.obj
+                                  00006359  00006361         9
+  _main
+                                  00006359         9   func ,g         * 
+FILE=.\src\hal\hal_gpio.obj
+                                  00006362  00006412        b1
+  _hal_gpio_init
+                                  00006362         8   func ,g         * 
+  _hal_gpio_deinit
+                                  0000636a         1   func ,g         * 
+  _hal_gpio_lora_cs_set
+                                  0000636b         f   func ,g         * 
+  _hal_gpio_lora_reset_set
+                                  0000637a         f   func ,g         * 
+  _hal_gpio_lora_busy_get
+                                  00006389         7   func ,g         * 
+  _hal_gpio_lora_dio1_get
+                                  00006390         5   func ,g         * 
+  _hal_gpio_lora_ant_sw_set
+                                  00006395         f   func ,g         * 
+  _hal_gpio_led_red_set
+                                  000063a4         e   func ,g         * 
+  _hal_gpio_led_green_set
+                                  000063b2         e   func ,g         * 
+  _hal_gpio_led_red_toggle
+                                  000063c0         d   func ,g         * 
+  _hal_gpio_led_blue_toggle
+                                  000063cd         d   func ,g         * 
+  _hal_gpio_led_all_off
+                                  000063da         7   func ,g         * 
+  _hal_gpio_buzzer_set
+                                  000063e1         f   func ,g         * 
+  _hal_gpio_buzzer_toggle
+                                  000063f0         d   func ,g         * 
+  _hal_gpio_buzzer_boot_set
+                                  000063fd         f   func ,g         * 
+  _hal_gpio_button_get
+                                  0000640c         7   func ,g         * 
+FILE=.\src\hal\hal_rtc.obj
+                                  00006413  000067bd       3ab
+  _hal_rtc_init
+                                  00006413        1d   func ,g         * 
+  _hal_rtc_deinit
+                                  00006430         e   func ,g         * 
+  _hal_rtc_set_time
+                                  0000643e        43   func ,g         * 
+  _hal_rtc_get_time
+                                  00006481        38   func ,g         * 
+  _hal_rtc_enable_int
+                                  000064b9         c   func ,g         * 
+  _hal_rtc_disable_int
+                                  000064c5         4   func ,g         * 
+  _hal_rtc_int_is_pending
+                                  000064c9         7   func ,g         * 
+  _hal_rtc_int_clear_flag
+                                  000064d0         4   func ,g         * 
+  _bcd_to_dec@1
+                                  000064d4         c   func ,l         * 
+  _dec_to_bcd@1
+                                  000064e0        12   func ,l         * 
+  _is_leap_year@1
+                                  000064f2        24   func ,l         * 
+  _days_in_month@1
+                                  00006516        29   func ,l         * 
+  _hal_rtc_time_to_seconds
+                                  0000653f       10e   func ,g         * 
+  _hal_rtc_seconds_to_time
+                                  0000664d       105   func ,g         * 
+  _hal_rtc_get_uptime_seconds
+                                  00006752        12   func ,g         * 
+  _hal_rtc_get_wakeup_count
+                                  00006764         7   func ,g         * 
+  _hal_rtc_calc_tx_slot
+                                  0000676b         b   func ,g         * 
+  _hal_rtc_is_tx_time
+                                  00006776        34   func ,g         * 
+  _hal_rtc_increment_wakeup_counter
+                                  000067aa        14   func ,g         * 
+FILE=.\src\hal\hal_spi.obj
+                                  000067be  000068b6        f9
+  _hal_spi_init
+                                  000067be         a   func ,g         * 
+  _hal_spi_deinit
+                                  000067c8         6   func ,g         * 
+  _hal_spi_transfer
+                                  000067ce        1a   func ,g         * 
+  _hal_spi_write
+                                  000067e8        3e   func ,g         * 
+  _hal_spi_read
+                                  00006826        41   func ,g         * 
+  _hal_spi_transfer_buffer
+                                  00006867        4e   func ,g         * 
+  _hal_spi_is_busy
+                                  000068b5         2   func ,g         * 
+FILE=.\src\hal\hal_systick.obj
+                                  000068b7  00006989        d3
+  _hal_systick_init
+                                  000068b7        17   func ,g         * 
+  _hal_systick_start
+                                  000068ce         4   func ,g         * 
+  _hal_systick_stop
+                                  000068d2         4   func ,g         * 
+  _hal_systick_set_callback
+                                  000068d6         a   func ,g         * 
+  _hal_systick_get_ms
+                                  000068e0         7   func ,g         * 
+  _hal_systick_clear_ms
+                                  000068e7         8   func ,g         * 
+  _hal_systick_get_ticks
+                                  000068ef         7   func ,g         * 
+  _r_Config_TAU0_1_callback_systick
+                                  000068f6        2c   func ,g         * 
+  _hal_systick_int_is_pending
+                                  00006922         9   func ,g         * 
+  _hal_systick_int_clear_flag
+                                  0000692b         4   func ,g         * 
+  _hal_systick_delay_ms
+                                  0000692f        2f   func ,g         * 
+  _hal_systick_delay_us
+                                  0000695e        2c   func ,g         * 
+FILE=.\src\hal\hal_timer.obj
+                                  0000698a  000069c3        3a
+  _hal_timer_init
+                                  0000698a        11   func ,g         * 
+  _hal_timer_deinit
+                                  0000699b         e   func ,g         * 
+  _hal_timer_set_pwm_duty
+                                  000069a9        1b   func ,g         * 
+FILE=.\src\hal\hal_uart.obj
+                                  000069c4  00006b70       1ad
+  _hal_uart_init
+                                  000069c4        1b   func ,g         * 
+  _hal_uart_deinit
+                                  000069df         e   func ,g         * 
+  _hal_uart_putchar
+                                  000069ed        65   func ,g         * 
+  _hal_uart_puts
+                                  00006a52        17   func ,g         * 
+  _hal_uart_getchar
+                                  00006a69        20   func ,g         * 
+  _hal_uart_available
+                                  00006a89         a   func ,g         * 
+  _hal_uart_send_buffer
+                                  00006a93        28   func ,g         * 
+  _hal_uart_receive_buffer
+                                  00006abb        28   func ,g         * 
+  _hal_uart_is_tx_busy
+                                  00006ae3         2   func ,g         * 
+  _hal_uart_is_rx_ready
+                                  00006ae5         2   func ,g         * 
+  _hal_uart_printf_init
+                                  00006ae7         1   func ,g         * 
+  _putchar
+                                  00006ae8        10   func ,g         * 
+  __write
+                                  00006af8        2a   func ,g         * 
+  ___putchar
+                                  00006b22         3   func ,g         * 
+  _fflush_stdout
+                                  00006b25         1   func ,g         * 
+  _hal_uart_rx_buffer_add
+                                  00006b26        2a   func ,g         * 
+  _hal_uart_rx_buffer_clear
+                                  00006b50        11   func ,g         * 
+  _hal_uart_rx_buffer_count
+                                  00006b61         4   func ,g         * 
+  _hal_uart_log_enable
+                                  00006b65         4   func ,g         * 
+  _hal_uart_log_disable
+                                  00006b69         4   func ,g         * 
+  _hal_uart_log_is_enabled
+                                  00006b6d         4   func ,g         * 
+FILE=.\src\mac\lora_mac.obj
+                                  00006b71  00006d8c       21c
+  _mac_is_channel_clear
+                                  00006b71        34   func ,g         * 
+  _mac_csma_send
+                                  00006ba5        f4   func ,g         * 
+  _mac_calculate_tx_slot
+                                  00006c99        26   func ,g         * 
+  _mac_get_slot_phase
+                                  00006cbf         c   func ,g         * 
+  _mac_is_my_tx_slot
+                                  00006ccb        23   func ,g         * 
+  _mac_set_join_channel
+                                  00006cee        40   func ,g         * 
+  _mac_select_random_data_channel
+                                  00006d2e        58   func ,g         * 
+  _mac_get_current_channel
+                                  00006d86         7   func ,g         * 
+FILE=.\src\phy\sx1262_config.obj
+                                  00006d8d  00007127       39b
+  _sx1262_init
+                                  00006d8d       19f   func ,g         * 
+  _sx1262_configure_lora
+                                  00006f2c        5d   func ,g         * 
+  _sx1262_configure_dio
+                                  00006f89        17   func ,g         * 
+  _sx1262_calibrate
+                                  00006fa0        27   func ,g         * 
+  _sx1262_set_channel
+                                  00006fc7        55   func ,g         * 
+  _sx1262_get_channel_frequency
+                                  0000701c        17   func ,g         * 
+  _sx1262_select_random_channel
+                                  00007033         9   func ,g         * 
+  _sx1262_set_sleep
+                                  0000703c        27   func ,g         * 
+  _sx1262_wakeup
+                                  00007063        25   func ,g         * 
+  _sx1262_get_status
+                                  00007088         5   func ,g         * 
+  _sx1262_get_chip_mode
+                                  0000708d         9   func ,g         * 
+  _sx1262_get_command_status
+                                  00007096         9   func ,g         * 
+  _sx1262_prepare_tx
+                                  0000709f        30   func ,g         * 
+  _sx1262_prepare_rx
+                                  000070cf        3f   func ,g         * 
+  _sx1262_get_irq_status
+                                  0000710e         4   func ,g         * 
+  _sx1262_clear_irq_status
+                                  00007112         4   func ,g         * 
+  _sx1262_is_tx_done
+                                  00007116         8   func ,g         * 
+  _sx1262_is_rx_done
+                                  0000711e         a   func ,g         * 
+FILE=.\src\phy\sx1262_rx.obj
+                                  00007128  00007402       2db
+  _sx1262_rx_irq_callback@1
+                                  00007128        5c   func ,l         * 
+  _sx1262_register_rx_handler
+                                  00007184         9   func ,g         * 
+  _sx1262_receive
+                                  0000718d       161   func ,g         * 
+  _sx1262_wait_rx_done
+                                  000072ee        b4   func ,g         * 
+  _sx1262_is_rx_busy
+                                  000073a2         b   func ,g         * 
+  _sx1262_abort_rx
+                                  000073ad        28   func ,g         * 
+  _sx1262_get_rssi
+                                  000073d5         4   func ,g         * 
+  _sx1262_get_snr
+                                  000073d9         4   func ,g         * 
+  _sx1262_measure_rssi
+                                  000073dd         7   func ,g         * 
+  _sx1262_is_signal_present
+                                  000073e4         c   func ,g         * 
+  _sx1262_get_rx_time
+                                  000073f0         7   func ,g         * 
+  _sx1262_is_rx_done_flag
+                                  000073f7         4   func ,g         * 
+  _sx1262_clear_rx_done_flag
+                                  000073fb         4   func ,g         * 
+  _sx1262_get_rx_payload_len
+                                  000073ff         4   func ,g         * 
+FILE=.\src\phy\sx1262_tx.obj
+                                  00007403  00007668       266
+  _sx1262_tx_irq_callback@1
+                                  00007403        2e   func ,l         * 
+  _sx1262_register_tx_handler
+                                  00007431         9   func ,g         * 
+  _sx1262_send
+                                  0000743a       12b   func ,g         * 
+  _sx1262_wait_tx_done
+                                  00007565        c2   func ,g         * 
+  _sx1262_is_tx_busy
+                                  00007627         b   func ,g         * 
+  _sx1262_abort_tx
+                                  00007632        28   func ,g         * 
+  _sx1262_get_tx_time
+                                  0000765a         7   func ,g         * 
+  _sx1262_is_tx_done_flag
+                                  00007661         4   func ,g         * 
+  _sx1262_clear_tx_done_flag
+                                  00007665         4   func ,g         * 
+FILE=.\src\phy\sx126x.obj
+                                  00007669  00007ec7       85f
+  _SX126xInit
+                                  00007669        28   func ,g         * 
+  _SX126xGetOperatingMode
+                                  00007691         4   func ,g         * 
+  _SX126xSetOperatingMode
+                                  00007695         4   func ,g         * 
+  _SX126xCheckDeviceReady
+                                  00007699        1a   func ,g         * 
+  _SX126xSetPayload
+                                  000076b3         a   func ,g         * 
+  _SX126xGetPayload
+                                  000076bd        32   func ,g         * 
+  _SX126xSendPayload
+                                  000076ef        12   func ,g         * 
+  _SX126xSetSyncWord
+                                  00007701         d   func ,g         * 
+  _SX126xSetCrcSeed
+                                  0000770e        1c   func ,g         * 
+  _SX126xSetCrcPolynomial
+                                  0000772a        1c   func ,g         * 
+  _SX126xSetWhiteningSeed
+                                  00007746        2a   func ,g         * 
+  _SX126xGetRandom
+                                  00007770        42   func ,g         * 
+  _SX126xSetSleep
+                                  000077b2        1e   func ,g         * 
+  _SX126xSetStandby
+                                  000077d0        1e   func ,g         * 
+  _SX126xSetFs
+                                  000077ee        15   func ,g         * 
+  _SX126xSetTx
+                                  00007803        29   func ,g         * 
+  _SX126xSetRx
+                                  0000782c        29   func ,g         * 
+  _SX126xRetentionRxBoostedFromSleep
+                                  00007855        1a   func ,g         * 
+  _SX126xSetRxBoosted
+                                  0000786f        32   func ,g         * 
+  _SX126xSetRxDutyCycle
+                                  000078a1        35   func ,g         * 
+  _SX126xSetCad
+                                  000078d6        19   func ,g         * 
+  _SX126xSetTxContinuousWave
+                                  000078ef        15   func ,g         * 
+  _SX126xSetTxInfinitePreamble
+                                  00007904        11   func ,g         * 
+  _SX126xSetStopRxTimerOnPreambleDetect
+                                  00007915        10   func ,g         * 
+  _SX126xSetLoRaSymbNumTimeout
+                                  00007925        10   func ,g         * 
+  _SX126xSetRegulatorMode
+                                  00007935        10   func ,g         * 
+  _SX126xCalibrate
+                                  00007945        12   func ,g         * 
+  _SX126xCalibrateImage
+                                  00007957        72   func ,g         * 
+  _SX126xSetPaConfig
+                                  000079c9        1c   func ,g         * 
+  _SX126xSetRxTxFallbackMode
+                                  000079e5        10   func ,g         * 
+  _SX126xSetDioIrqParams
+                                  000079f5        2b   func ,g         * 
+  _SX126xGetIrqStatus
+                                  00007a20        14   func ,g         * 
+  _SX126xSetDio2AsRfSwitchCtrl
+                                  00007a34        10   func ,g         * 
+  _SX126xSetDio3AsTcxoCtrl
+                                  00007a44        1e   func ,g         * 
+  _SX126xSetRfFrequency
+                                  00007a62        71   func ,g         * 
+  _SX126xSetPacketType
+                                  00007ad3        1f   func ,g         * 
+  _SX126xGetPacketType
+                                  00007af2        13   func ,g         * 
+  _SX126xSetTxParams
+                                  00007b05        8d   func ,g         * 
+  _SX126xSetModulationParams
+                                  00007b92        d5   func ,g         * 
+  _SX126xSetPacketParams
+                                  00007c67        af   func ,g         * 
+  _SX126xSetCadParams
+                                  00007d16        2c   func ,g         * 
+  _SX126xSetBufferBaseAddress
+                                  00007d42        14   func ,g         * 
+  _SX126xGetStatus
+                                  00007d56         c   func ,g         * 
+  _SX126xGetRssiInst
+                                  00007d62        18   func ,g         * 
+  _SX126xGetRxBufferStatus
+                                  00007d7a        26   func ,g         * 
+  _SX126xGetPacketStatus
+                                  00007da0        88   func ,g         * 
+  _SX126xGetDeviceErrors
+                                  00007e28        72   func ,g         * 
+  _SX126xClearDeviceErrors
+                                  00007e9a        19   func ,g         * 
+  _SX126xClearIrqStatus
+                                  00007eb3        15   func ,g         * 
+FILE=.\src\phy\sx126x_board.obj
+                                  00007ec8  000081a4       2dd
+  _SX126xIoInit
+                                  00007ec8        13   func ,g         * 
+  _SX126xIoReInit
+                                  00007edb         5   func ,g         * 
+  _sx126x_dio1_irq_handler
+                                  00007ee0        16   func ,g         * 
+  _SX126xIoIrqInit
+                                  00007ef6        16   func ,g         * 
+  _SX126xIoDeInit
+                                  00007f0c        20   func ,g         * 
+  _SX126xGetBoardTcxoWakeupTime
+                                  00007f2c         3   func ,g         * 
+  _SX126xReset
+                                  00007f2f        22   func ,g         * 
+  _SX126xWaitOnBusy
+                                  00007f51         a   func ,g         * 
+  _SX126xWakeup
+                                  00007f5b        27   func ,g         * 
+  _SX126xWriteCommand
+                                  00007f82        49   func ,g         * 
+  _SX126xReadCommand
+                                  00007fcb        52   func ,g         * 
+  _SX126xWriteRegisters
+                                  0000801d        50   func ,g         * 
+  _SX126xWriteRegister
+                                  0000806d        11   func ,g         * 
+  _SX126xReadRegisters
+                                  0000807e        57   func ,g         * 
+  _SX126xReadRegister
+                                  000080d5        10   func ,g         * 
+  _SX126xWriteBuffer
+                                  000080e5        51   func ,g         * 
+  _SX126xReadBuffer
+                                  00008136        58   func ,g         * 
+  _SX126xSetRfTxPower
+                                  0000818e         6   func ,g         * 
+  _SX126xGetPaSelect
+                                  00008194         3   func ,g         * 
+  _SX126xAntSwOn
+                                  00008197         5   func ,g         * 
+  _SX126xAntSwOff
+                                  0000819c         5   func ,g         * 
+  _SX126xCheckRfFrequency
+                                  000081a1         2   func ,g         * 
+  _SX126xBoardIsTcxoPresent
+                                  000081a3         2   func ,g         * 
+FILE=.\src\smc_gen\Config_CSI20\Config_CSI20.obj
+                                  000081a5  000082a0        fc
+  _R_Config_CSI20_Create
+                                  000081a5        8a   func ,g         * 
+  _R_Config_CSI20_Start
+                                  0000822f        26   func ,g         * 
+  _R_Config_CSI20_Stop
+                                  00008255        18   func ,g         * 
+  _R_Config_CSI20_Send_Receive
+                                  0000826d        34   func ,g         * 
+FILE=.\src\smc_gen\Config_CSI20\Config_CSI20_user.obj
+                                  000082a1  000082a4         4
+  _R_Config_CSI20_Create_UserInit
+                                  000082a1         1   func ,g         * 
+  _r_Config_CSI20_callback_sendend@1
+                                  000082a2         1   func ,l         * 
+  _r_Config_CSI20_callback_receiveend@1
+                                  000082a3         1   func ,l         * 
+  _r_Config_CSI20_callback_error@1
+                                  000082a4         1   func ,l         * 
+FILE=.\src\smc_gen\Config_INTC\Config_INTC.obj
+                                  000082a5  000082f6        52
+  _R_Config_INTC_Create
+                                  000082a5        36   func ,g         * 
+  _R_Config_INTC_INTP0_Start
+                                  000082db         7   func ,g         * 
+  _R_Config_INTC_INTP0_Stop
+                                  000082e2         7   func ,g         * 
+  _R_Config_INTC_INTP8_Start
+                                  000082e9         7   func ,g         * 
+  _R_Config_INTC_INTP8_Stop
+                                  000082f0         7   func ,g         * 
+FILE=.\src\smc_gen\Config_INTC\Config_INTC_user.obj
+                                  000082f7  000082f7         1
+  _R_Config_INTC_Create_UserInit
+                                  000082f7         1   func ,g         * 
+FILE=.\src\smc_gen\Config_PORT\Config_PORT.obj
+                                  000082f8  0000835e        67
+  _R_Config_PORT_Create
+                                  000082f8        63   func ,g         * 
+  _R_Config_PORT_ReadPmnValues
+                                  0000835b         4   func ,g         * 
+FILE=.\src\smc_gen\Config_PORT\Config_PORT_user.obj
+                                  0000835f  0000835f         1
+  _R_Config_PORT_Create_UserInit
+                                  0000835f         1   func ,g         * 
+FILE=.\src\smc_gen\Config_RTC\Config_RTC.obj
+                                  00008360  000085e0       281
+  _R_Config_RTC_Create
+                                  00008360        23   func ,g         * 
+  _R_Config_RTC_Start
+                                  00008383         b   func ,g         * 
+  _R_Config_RTC_Stop
+                                  0000838e         b   func ,g         * 
+  _R_Config_RTC_Set_HourSystem
+                                  00008399        99   func ,g         * 
+  _R_Config_RTC_Get_CounterValue
+                                  00008432        b4   func ,g         * 
+  _R_Config_RTC_Set_CounterValue
+                                  000084e6        c4   func ,g         * 
+  _R_Config_RTC_Set_ConstPeriodInterruptOn
+                                  000085aa        26   func ,g         * 
+  _R_Config_RTC_Set_ConstPeriodInterruptOff
+                                  000085d0        11   func ,g         * 
+FILE=.\src\smc_gen\Config_RTC\Config_RTC_user.obj
+                                  000085e1  000085f9        19
+  _R_Config_RTC_Create_UserInit
+                                  000085e1         1   func ,g         * 
+  _r_Config_RTC_callback_constperiod@1
+                                  000085e2        18   func ,l         * 
+FILE=.\src\smc_gen\Config_TAU0_0\Config_TAU0_0.obj
+                                  000085fa  0000869a        a1
+  _R_Config_TAU0_0_Create
+                                  000085fa        7d   func ,g         * 
+  _R_Config_TAU0_0_Start
+                                  00008677        12   func ,g         * 
+  _R_Config_TAU0_0_Stop
+                                  00008689        12   func ,g         * 
+FILE=.\src\smc_gen\Config_TAU0_0\Config_TAU0_0_user.obj
+                                  0000869b  0000869b         1
+  _R_Config_TAU0_0_Create_UserInit
+                                  0000869b         1   func ,g         * 
+FILE=.\src\smc_gen\Config_TAU0_1\Config_TAU0_1.obj
+                                  0000869c  00008708        6d
+  _R_Config_TAU0_1_Create
+                                  0000869c        4d   func ,g         * 
+  _R_Config_TAU0_1_Start
+                                  000086e9        10   func ,g         * 
+  _R_Config_TAU0_1_Stop
+                                  000086f9        10   func ,g         * 
+FILE=.\src\smc_gen\Config_TAU0_1\Config_TAU0_1_user.obj
+                                  00008709  00008709         1
+  _R_Config_TAU0_1_Create_UserInit
+                                  00008709         1   func ,g         * 
+FILE=.\src\smc_gen\Config_UARTA1\Config_UARTA1.obj
+                                  0000870a  000087a0        97
+  _R_Config_UARTA1_Create
+                                  0000870a        3c   func ,g         * 
+  _R_Config_UARTA1_Start
+                                  00008746        1b   func ,g         * 
+  _R_Config_UARTA1_Stop
+                                  00008761         8   func ,g         * 
+  _R_Config_UARTA1_Send
+                                  00008769        2e   func ,g         * 
+  _R_Config_UARTA1_Loopback_Enable
+                                  00008797         5   func ,g         * 
+  _R_Config_UARTA1_Loopback_Disable
+                                  0000879c         5   func ,g         * 
+FILE=.\src\smc_gen\Config_UARTA1\Config_UARTA1_user.obj
+                                  000087a1  000087a2         2
+  _R_Config_UARTA1_Create_UserInit
+                                  000087a1         1   func ,g         * 
+  _R_Config_UARTA1_PollingEnd_UserCode
+                                  000087a2         1   func ,g         * 
+FILE=.\src\smc_gen\general\r_cg_rtc_common.obj
+                                  000087a3  000087ac         a
+  _R_RTC_Set_PowerOn
+                                  000087a3         5   func ,g         * 
+  _R_RTC_Set_PowerOff
+                                  000087a8         5   func ,g         * 
+FILE=.\src\smc_gen\general\r_cg_sau_common.obj
+                                  000087ad  000087f5        49
+  _R_SAU0_Create
+                                  000087ad         5   func ,g         * 
+  _R_SAU1_Create
+                                  000087b2         8   func ,g         * 
+  _R_SAU0_Set_PowerOn
+                                  000087ba         5   func ,g         * 
+  _R_SAU0_Set_PowerOff
+                                  000087bf         5   func ,g         * 
+  _R_SAU1_Set_PowerOn
+                                  000087c4         5   func ,g         * 
+  _R_SAU1_Set_PowerOff
+                                  000087c9         5   func ,g         * 
+  _R_SAU0_Set_Reset
+                                  000087ce         5   func ,g         * 
+  _R_SAU0_Release_Reset
+                                  000087d3         5   func ,g         * 
+  _R_SAU1_Set_Reset
+                                  000087d8         5   func ,g         * 
+  _R_SAU1_Release_Reset
+                                  000087dd         5   func ,g         * 
+  _R_SAU0_Set_SnoozeOn
+                                  000087e2         a   func ,g         * 
+  _R_SAU0_Set_SnoozeOff
+                                  000087ec         a   func ,g         * 
+FILE=.\src\smc_gen\general\r_cg_systeminit.obj
+                                  000087f6  0000881c        27
+  _R_Systeminit
+                                  000087f6        27   func ,g         * 
+FILE=.\src\smc_gen\general\r_cg_tau_common.obj
+                                  0000881d  0000883c        20
+  _R_TAU0_Create
+                                  0000881d         c   func ,g         * 
+  _R_TAU0_Set_PowerOn
+                                  00008829         5   func ,g         * 
+  _R_TAU0_Set_PowerOff
+                                  0000882e         5   func ,g         * 
+  _R_TAU0_Set_Reset
+                                  00008833         5   func ,g         * 
+  _R_TAU0_Release_Reset
+                                  00008838         5   func ,g         * 
+FILE=.\src\smc_gen\general\r_cg_uarta_common.obj
+                                  0000883d  0000884e        12
+  _R_UARTA_Create
+                                  0000883d         8   func ,g         * 
+  _R_UARTA_Set_PowerOn
+                                  00008845         5   func ,g         * 
+  _R_UARTA_Set_PowerOff
+                                  0000884a         5   func ,g         * 
+FILE=.\src\smc_gen\r_bsp\board\generic_rl78_g23\hdwinit.obj
+                                  0000884f  00008858         a
+  _hdwinit
+                                  0000884f         a   func ,g         * 
+FILE=.\src\smc_gen\r_bsp\board\generic_rl78_g23\r_bsp_init.obj
+                                  00008859  00008863         b
+  _bsp_init_system
+                                  00008859         7   func ,g         * 
+  _bsp_init_hardware
+                                  00008860         4   func ,g         * 
+FILE=.\src\smc_gen\r_bsp\mcu\all\r_bsp_common.obj
+                                  00008864  00008867         4
+  _R_BSP_GetFclkFreqHz
+                                  00008864         4   func ,g         * 
+FILE=.\src\smc_gen\r_bsp\mcu\rl78_g23\mcu_clocks.obj
+                                  00008868  0000892f        c8
+  _get_fclk_freq_hz
+                                  00008868        69   func ,g         * 
+  _mcu_clock_setup
+                                  000088d1        5f   func ,g         * 
+FILE=.\src\smc_gen\r_pincfg\Pin.obj
+                                  00008930  00008950        21
+  _R_Pins_Create
+                                  00008930        21   func ,g         * 
+FILE=.\src\test\test_gpio.obj
+                                  00008951  00008c39       2e9
+  _delay_ms@1
+                                  00008951        47   func ,l         * 
+  _test_led_blink_red
+                                  00008998        40   func ,g         * 
+  _test_led_blink_green
+                                  000089d8        40   func ,g         * 
+  _test_led_blink_both
+                                  00008a18        4d   func ,g         * 
+  _test_led_toggle_pattern
+                                  00008a65        60   func ,g         * 
+  _test_led_on_off
+                                  00008ac5        19   func ,g         * 
+  _test_button_poll
+                                  00008ade        69   func ,g         * 
+  _test_button_led_toggle
+                                  00008b47        6a   func ,g         * 
+  _test_alarm_simulation
+                                  00008bb1        46   func ,g         * 
+  _test_heartbeat_pattern
+                                  00008bf7        3d   func ,g         * 
+  _main_test_gpio
+                                  00008c34         6   func ,g         * 
+FILE=.\src\test\test_mac.obj
+                                  00008c3a  00009275       63c
+  _test_mac_channels
+                                  00008c3a       1b4   func ,g         * 
+  _test_mac_time_slotting
+                                  00008dee       343   func ,g         * 
+  _test_mac_csma
+                                  00009131        85   func ,g         * 
+  _test_mac_main
+                                  000091b6        c0   func ,g         * 
+FILE=.\src\test\test_main.obj
+                                  00009276  00009389       114
+  _main_test_entry
+                                  00009276       114   func ,g         * 
+FILE=.\src\test\test_protocol.obj
+                                  0000938a  0000995d       5d4
+  _test_protocol_header
+                                  0000938a       12c   func ,g         * 
+  _test_protocol_crc16
+                                  000094b6       139   func ,g         * 
+  _test_protocol_payloads
+                                  000095ef       185   func ,g         * 
+  _test_protocol_aes128
+                                  00009774       137   func ,g         * 
+  _test_protocol_main
+                                  000098ab        b3   func ,g         * 
+FILE=.\src\test\test_rtc.obj
+                                  0000995e  00009ceb       38e
+  _test_rtc_set_and_read
+                                  0000995e       129   func ,g         * 
+  _test_rtc_counter_increment
+                                  00009a87        99   func ,g         * 
+  _test_rtc_const_period_interrupt
+                                  00009b20        e7   func ,g         * 
+  _test_rtc_interrupt_flag_polling
+                                  00009c07        d6   func ,g         * 
+  _main_test_rtc
+                                  00009cdd         f   func ,g         * 
+FILE=.\src\test\test_spi.obj
+                                  00009cec  00009e28       13d
+  _test_spi_single_byte
+                                  00009cec        55   func ,g         * 
+  _test_spi_pattern_sequence
+                                  00009d41        32   func ,g         * 
+  _test_spi_buffer_transfer
+                                  00009d73        4a   func ,g         * 
+  _test_spi_continuous_0xAA
+                                  00009dbd        2c   func ,g         * 
+  _test_spi_continuous_0xFF
+                                  00009de9        2c   func ,g         * 
+  _main_test_spi
+                                  00009e15        14   func ,g         * 
+FILE=.\src\test\test_sx126x.obj
+                                  00009e29  0000a9ff       bd7
+  _test_dio1_irq_handler@1
+                                  00009e29        11   func ,l         * 
+  _test_read_chip_version
+                                  00009e3a       112   func ,g         * 
+  _test_spi_communication
+                                  00009f4c        7a   func ,g         * 
+  _test_dio1_interrupt
+                                  00009fc6       1c1   func ,g         * 
+  _test_sx126x_main
+                                  0000a187        95   func ,g         * 
+  _test_sx126x_version
+                                  0000a21c         3   func ,g         * 
+  _test_sx126x_spi
+                                  0000a21f         3   func ,g         * 
+  _test_sx126x_dio1
+                                  0000a222         3   func ,g         * 
+  _setup_lora_config@1
+                                  0000a225        6c   func ,l         * 
+  _test_sx1262_init_config
+                                  0000a291       114   func ,g         * 
+  _test_sx1262_channels
+                                  0000a3a5       121   func ,g         * 
+  _test_tx_irq_handler@1
+                                  0000a4c6        11   func ,l         * 
+  _test_sx1262_tx
+                                  0000a4d7       242   func ,g         * 
+  _test_rx_irq_handler@1
+                                  0000a719        11   func ,l         * 
+  _test_sx1262_rx
+                                  0000a72a       2d6   func ,g         * 
+FILE=.\src\test\test_systick.obj
+                                  0000aa00  0000adf5       3f6
+  _systick_callback_counter@1
+                                  0000aa00        14   func ,l         * 
+  _test_systick_counter_increment
+                                  0000aa14        7f   func ,g         * 
+  _test_systick_callback_execution
+                                  0000aa93        8a   func ,g         * 
+  _test_systick_start_stop
+                                  0000ab1d        a5   func ,g         * 
+  _test_systick_multiple_measurements
+                                  0000abc2        c2   func ,g         * 
+  _test_systick_delay_1s
+                                  0000ac84        27   func ,g         * 
+  _test_systick_delay_100ms
+                                  0000acab        27   func ,g         * 
+  _test_systick_delay_10ms
+                                  0000acd2        27   func ,g         * 
+  _test_systick_delay_1ms
+                                  0000acf9        23   func ,g         * 
+  _test_systick_delay_us_10
+                                  0000ad1c        23   func ,g         * 
+  _test_systick_delay_us_100
+                                  0000ad3f        27   func ,g         * 
+  _test_systick_delay_us_1000
+                                  0000ad66        27   func ,g         * 
+  _test_systick_delay_us_mixed
+                                  0000ad8d        27   func ,g         * 
+  _test_systick_delay_us_tiny
+                                  0000adb4        27   func ,g         * 
+  _main_test_systick
+                                  0000addb        1b   func ,g         * 
+FILE=.\src\test\test_timer.obj
+                                  0000adf6  0000aecb        d6
+  _test_pwm_duty_sweep
+                                  0000adf6        49   func ,g         * 
+  _test_pwm_fixed_duty
+                                  0000ae3f        4a   func ,g         * 
+  _test_pwm_audio_tone
+                                  0000ae89        28   func ,g         * 
+  _main_test_timer
+                                  0000aeb1        1b   func ,g         * 
+FILE=.\src\test\test_uart_debug.obj
+                                  0000aecc  0000b0f1       226
+  _test_uart_printf
+                                  0000aecc        cd   func ,g         * 
+  _test_uart_direct
+                                  0000af99        e1   func ,g         * 
+  _test_uart_combined
+                                  0000b07a        70   func ,g         * 
+  _test_uart_all
+                                  0000b0ea         8   func ,g         * 
+FILE=.\src\test\test_utils.obj
+                                  0000b0f2  0000b81d       72c
+  _test_crc16_extended
+                                  0000b0f2       19c   func ,g         * 
+  _test_crc16_frame_verification
+                                  0000b28e       1e2   func ,g         * 
+  _test_aes128_blocks
+                                  0000b470        cd   func ,g         * 
+  _test_aes128_buffer
+                                  0000b53d       134   func ,g         * 
+  _test_aes128_key_derivation
+                                  0000b671        f7   func ,g         * 
+  _test_utils_main
+                                  0000b768        b6   func ,g         * 
+FILE=.\src\utils\aes128.obj
+                                  0000b81e  0000b9f3       1d6
+  _aes128_init
+                                  0000b81e        28   func ,g         * 
+  _aes128_encrypt_block
+                                  0000b846        2e   func ,g         * 
+  _aes128_decrypt_block
+                                  0000b874        2e   func ,g         * 
+  _aes128_encrypt_buffer
+                                  0000b8a2        6a   func ,g         * 
+  _aes128_decrypt_buffer
+                                  0000b90c        82   func ,g         * 
+  _aes128_derive_dynamic_key
+                                  0000b98e        66   func ,g         * 
+FILE=.\src\utils\crc16.obj
+                                  0000b9f4  0000ba6d        7a
+  _crc16_init
+                                  0000b9f4         3   func ,g         * 
+  _crc16_update
+                                  0000b9f7        10   func ,g         * 
+  _crc16_finalize
+                                  0000ba07         1   func ,g         * 
+  _crc16_calculate
+                                  0000ba08        25   func ,g         * 
+  _crc16_verify
+                                  0000ba2d        41   func ,g         * 
+FILE=.\src\utils\log_control.obj
+                                  0000ba6e  0000bac6        59
+  _log_set_level
+                                  0000ba6e        20   func ,g         * 
+  _log_get_level
+                                  0000ba8e         4   func ,g         * 
+  _log_enable
+                                  0000ba92         4   func ,g         * 
+  _log_disable
+                                  0000ba96         3   func ,g         * 
+  _log_level_name
+                                  0000ba99        2e   func ,g         * 
+FILE=.\src\utils\util_system.obj
+                                  0000bac7  0000baf1        2b
+  _RMemCopy
+                                  0000bac7        2b   func ,g         * 
+
+SECTION=.SLIB
+FILE=_COM_fdiv
+                                  0000baf2  0000bc1f       12e
+  __COM_fdiv
+                                  0000bb51         0   none ,g         * 
+FILE=_COM_fmul
+                                  0000bc20  0000bd0c        ed
+  __COM_fmul
+                                  0000bc6b         0   none ,g         * 
+FILE=_COM_ftoul
+                                  0000bd0d  0000bd18         c
+  __COM_ftoul
+                                  0000bd0d         0   none ,g         * 
+FILE=_COM_ultof
+                                  0000bd19  0000bd1e         6
+  __COM_ultof
+                                  0000bd19         0   none ,g         * 
+FILE=memcmp
+                                  0000bd1f  0000bd30        12
+  _memcmp
+                                  0000bd1f         0   none ,g         * 
+FILE=memcpy
+                                  0000bd31  0000bd40        10
+  _memcpy
+                                  0000bd31         0   none ,g         * 
+FILE=memset
+                                  0000bd41  0000bd4e         e
+  _memset
+                                  0000bd41         0   none ,g         * 
+FILE=powf
+                                  0000bd4f  0000bdac        5e
+  _powf
+                                  0000bd4f        5e   func ,g         * 
+FILE=printf
+                                  0000bdad  0000be69        bd
+  _printf
+                                  0000bdad        b8   func ,g         * 
+  __REL_pc@1
+                                  0000be65         5   func ,l         * 
+FILE=_COM_feq
+                                  0000be6a  0000be7f        16
+  __COM_feq
+                                  0000be6a         0   none ,g         * 
+FILE=_REL_f_inf
+                                  0000be80  0000be87         8
+  __REL_f_inf
+                                  0000be80         0   none ,g         * 
+FILE=_REL_f_norm
+                                  0000be88  0000be97        10
+  __REL_f_norm
+                                  0000be88         0   none ,g         * 
+FILE=_REL_f_round
+                                  0000be98  0000beaa        13
+  __REL_f_round
+                                  0000be98         0   none ,g         * 
+FILE=_REL_ftol
+                                  0000beab  0000bedf        35
+  __REL_ftol
+                                  0000beab         0   none ,g         * 
+FILE=_REL_in_pows
+                                  0000bee0  0000c0d2       1f3
+  __REL_in_pows
+                                  0000bee0       1f3   func ,g         * 
+FILE=_REL_ltof
+                                  0000c0d3  0000c11c        4a
+  __REL_ltof
+                                  0000c0d3         0   none ,g         * 
+FILE=_REL_print
+                                  0000c11d  0000e112      1ff6
+  __REL_print
+                                  0000c11d      10e7   func ,g         * 
+  __REL_fltprn@1
+                                  0000d204       93e   func ,l         * 
+  __REL_henkan1@1
+                                  0000db42        28   func ,l         * 
+  __REL_henkan2@1
+                                  0000db6a        33   func ,l         * 
+  __REL_pri@1
+                                  0000db9d       298   func ,l         * 
+  __REL_fltgeti@1
+                                  0000de35       19d   func ,l         * 
+  __REL_inmod@1
+                                  0000dfd2       141   func ,l         * 
+FILE=_COM_fge
+                                  0000e113  0000e128        16
+  __COM_fge
+                                  0000e113         0   none ,g         * 
+FILE=_COM_flt
+                                  0000e129  0000e13e        16
+  __COM_flt
+                                  0000e129         0   none ,g         * 
+FILE=_COM_fne
+                                  0000e13f  0000e14f        11
+  __COM_fne
+                                  0000e13f         0   none ,g         * 
+FILE=_COM_ftosl
+                                  0000e150  0000e157         8
+  __COM_ftosl
+                                  0000e150         0   none ,g         * 
+FILE=_COM_funordered
+                                  0000e158  0000e162         b
+  __COM_funordered
+                                  0000e158         0   none ,g         * 
+FILE=_COM_lshr
+                                  0000e163  0000e183        21
+  __COM_lshr
+                                  0000e16d         0   none ,g         * 
+FILE=_COM_sidiv
+                                  0000e184  0000e1a5        22
+  __COM_sidiv
+                                  0000e186         0   none ,g         * 
+FILE=_COM_sirem
+                                  0000e1a6  0000e1c5        20
+  __COM_sirem
+                                  0000e1a6         0   none ,g         * 
+FILE=_COM_sltof
+                                  0000e1c6  0000e1dd        18
+  __COM_sltof
+                                  0000e1c6         0   none ,g         * 
+FILE=_COM_ulldiv
+                                  0000e1de  0000e207        2a
+  __COM_ulldiv
+                                  0000e1de         0   none ,g         * 
+FILE=_COM_ullrem
+                                  0000e208  0000e238        31
+  __COM_ullrem
+                                  0000e208         0   none ,g         * 
+FILE=_REL_fcmp
+                                  0000e239  0000e270        38
+  __REL_fcmp
+                                  0000e239         0   none ,g         * 
+FILE=_REL_fordered_core
+                                  0000e271  0000e28c        1c
+  __REL_fordered_core
+                                  0000e271         0   none ,g         * 
+FILE=_REL_in_exps
+                                  0000e28d  0000e4c8       23c
+  __REL_polinos@1
+                                  0000e28d        73   func ,l         * 
+  __REL_in_exps
+                                  0000e300       1c9   func ,g         * 
+FILE=_REL_in_ldexps
+                                  0000e4c9  0000e5bf        f7
+  __REL_in_ldexps
+                                  0000e4c9        f7   func ,g         * 
+FILE=_REL_in_logs
+                                  0000e5c0  0000e7b9       1fa
+  __REL_polinos@1
+                                  0000e5c0        73   func ,l         * 
+  __REL_in_logs
+                                  0000e633       187   func ,g         * 
+FILE=isdigit
+                                  0000e7ba  0000e7c3         a
+  _isdigit
+                                  0000e7ba         0   none ,g         * 
+FILE=_COM_faddsub
+                                  0000e7c4  0000e8fe       13b
+  __COM_fsub
+                                  0000e820         0   none ,g         * 
+  __COM_fadd
+                                  0000e828         0   none ,g         * 
+FILE=_COM_lshl
+                                  0000e8ff  0000e919        1b
+  __COM_lshl
+                                  0000e908         0   none ,g         * 
+FILE=_REL_lldiv
+                                  0000e91a  0000eb1f       206
+  __REL_lldiv
+                                  0000e936         0   none ,g         * 
+FILE=_REL_llrem
+                                  0000eb20  0000ed23       204
+  __REL_llrem
+                                  0000eb3d         0   none ,g         * 
+FILE=_REL_ltosl
+                                  0000ed24  0000ed48        25
+  __REL_ltosl
+                                  0000ed24         0   none ,g         * 
+
+SECTION=.monitor2
+FILE=rlink_generates_02
+                                  0001fe00  0001ffff       200
+
+SECTION=.bss
+FILE=.\src\hal\hal_spi.obj
+                                  000fbf00  000fc0ff       200
+  _spi_rx_buffer@1
+                                  000fbf00       100   data ,l         * 
+  _spi_tx_buffer@2
+                                  000fc000       100   data ,l         * 
+FILE=.\src\hal\hal_uart.obj
+                                  000fc100  000fc1ff       100
+  _rx_buffer@3
+                                  000fc100       100   data ,l         * 
+FILE=.\src\phy\sx126x.obj
+                                  000fc200  000fc200         1
+  _radio_mode
+                                  000fc200         1   data ,g         * 
+FILE=.\src\smc_gen\Config_CSI20\Config_CSI20.obj
+                                  000fc202  000fc207         6
+  _gp_csi20_tx_address
+                                  000fc202         2   data ,g         * 
+  _g_csi20_tx_count
+                                  000fc204         2   data ,g         * 
+  _gp_csi20_rx_address
+                                  000fc206         2   data ,g         * 
+FILE=.\src\smc_gen\Config_RTC\Config_RTC.obj
+                                  000fc208  000fc208         1
+  _g_rtc_interrupt_flag
+                                  000fc208         1   data ,g         * 
+FILE=_REL_print
+                                  000fc20a  000fc289        80
+  _qt@1@_REL_inmod@1
+                                  000fc20a        80   data ,l         * 
+
+SECTION=.dataR
+FILE=.\src\hal\hal_rtc.obj
+                                  000fc28a  000fc28f         6
+  _g_rtc_initialized@1
+                                  000fc28a         1   data ,l         * 
+  _g_rtc_wakeup_counter@2
+                                  000fc28c         4   data ,l         * 
+FILE=.\src\hal\hal_systick.obj
+                                  000fc290  000fc297         8
+  _g_systick_count@1
+                                  000fc290         4   data ,l         * 
+  _g_systick_callback@2
+                                  000fc294         4   data ,l         * 
+FILE=.\src\hal\hal_timer.obj
+                                  000fc298  000fc298         1
+  _g_tau0_initialized@1
+                                  000fc298         1   data ,l         * 
+FILE=.\src\hal\hal_uart.obj
+                                  000fc29a  000fc2a1         8
+  _uart_initialized@1
+                                  000fc29a         1   data ,l         * 
+  _uart_log_enabled@2
+                                  000fc29b         1   data ,l         * 
+  _rx_head@4
+                                  000fc29c         2   data ,l         * 
+  _rx_tail@5
+                                  000fc29e         2   data ,l         * 
+  _rx_count@6
+                                  000fc2a0         2   data ,l         * 
+FILE=.\src\mac\lora_mac.obj
+                                  000fc2a2  000fc2a5         4
+  _g_current_channel@1
+                                  000fc2a2         4   data ,l         * 
+FILE=.\src\phy\sx1262_rx.obj
+                                  000fc2a6  000fc2b0         b
+  _rx_done_flag@1
+                                  000fc2a6         1   data ,l         * 
+  _rx_done_time@2
+                                  000fc2a8         4   data ,l         * 
+  _rx_payload_len@3
+                                  000fc2ac         1   data ,l         * 
+  _last_rssi@4
+                                  000fc2ae         2   data ,l         * 
+  _last_snr@5
+                                  000fc2b0         1   data ,l         * 
+FILE=.\src\phy\sx1262_tx.obj
+                                  000fc2b2  000fc2b7         6
+  _tx_done_flag@1
+                                  000fc2b2         1   data ,l         * 
+  _tx_done_time@2
+                                  000fc2b4         4   data ,l         * 
+FILE=.\src\phy\sx126x.obj
+                                  000fc2b8  000fc2be         7
+  _PacketType@1
+                                  000fc2b8         1   data ,l         * 
+  _LoRaHeaderType@2
+                                  000fc2b9         1   data ,l         * 
+  _FrequencyError
+                                  000fc2ba         4   data ,g         * 
+  _ImageCalibrated@3
+                                  000fc2be         1   data ,l         * 
+FILE=.\src\phy\sx126x_board.obj
+                                  000fc2c0  000fc2c3         4
+  _g_dio1_irq_handler@1
+                                  000fc2c0         4   data ,l         * 
+FILE=.\src\test\test_mac.obj
+                                  000fc2c4  000fc2cb         8
+  _g_test_pass@1
+                                  000fc2c4         4   data ,l         * 
+  _g_test_fail@2
+                                  000fc2c8         4   data ,l         * 
+FILE=.\src\test\test_protocol.obj
+                                  000fc2cc  000fc2d3         8
+  _g_test_pass@1
+                                  000fc2cc         4   data ,l         * 
+  _g_test_fail@2
+                                  000fc2d0         4   data ,l         * 
+FILE=.\src\test\test_rtc.obj
+                                  000fc2d4  000fc2d7         4
+  _g_rtc_test_interrupt_count
+                                  000fc2d4         4   data ,g         * 
+FILE=.\src\test\test_sx126x.obj
+                                  000fc2d8  000fc2e9        12
+  _dio1_interrupt_count@1
+                                  000fc2d8         1   data ,l         * 
+  _dio1_interrupt_time@2
+                                  000fc2da         4   data ,l         * 
+  _tx_done_flag@3
+                                  000fc2de         1   data ,l         * 
+  _tx_done_time@4
+                                  000fc2e0         4   data ,l         * 
+  _rx_done_flag@5
+                                  000fc2e4         1   data ,l         * 
+  _rx_done_time@6
+                                  000fc2e6         4   data ,l         * 
+FILE=.\src\test\test_systick.obj
+                                  000fc2ea  000fc2ed         4
+  _g_callback_count@1
+                                  000fc2ea         4   data ,l         * 
+FILE=.\src\test\test_utils.obj
+                                  000fc2ee  000fc2f5         8
+  _g_test_pass@1
+                                  000fc2ee         4   data ,l         * 
+  _g_test_fail@2
+                                  000fc2f2         4   data ,l         * 
+FILE=.\src\utils\log_control.obj
+                                  000fc2f6  000fc2f6         1
+  _g_log_level
+                                  000fc2f6         1   data ,g         * 
+FILE=errno
+                                  000fc2f8  000fc2f9         2
+  _errno
+                                  000fc2f8         2   data ,g         * 
+
+Absolute value symbols
+FILE=.\src\phy\sx126x.obj
+  @$IMM_1
+                                  00000001         0   none ,l         * 
+FILE=rlink_generates_05
+  __s.textf
+                                  00006315         0   none ,g         * 
+  __e.textf
+                                  0000baf2         0   none ,g         * 
+  __s.text
+                                  000001c0         0   none ,g         * 
+  __e.text
+                                  00000328         0   none ,g         * 
+  __s.const
+                                  00003000         0   none ,g         * 
+  __e.const
+                                  00006315         0   none ,g         * 
+  __s.constf
+                                  000000d8         0   none ,g         * 
+  __e.constf
+                                  00000150         0   none ,g         * 
+  __s.data
+                                  00000150         0   none ,g         * 
+  __e.data
+                                  000001c0         0   none ,g         * 
+  __s.sdata
+                                  00000080         0   none ,g         * 
+  __e.sdata
+                                  00000080         0   none ,g         * 
+  __s.bss
+                                  000fbf00         0   none ,g         * 
+  __e.bss
+                                  000fc28a         0   none ,g         * 
+  __s.sbss
+                                  000ffe20         0   none ,g         * 
+  __e.sbss
+                                  000ffe20         0   none ,g         * 
+  __s.dataR
+                                  000fc28a         0   none ,g         * 
+  __e.dataR
+                                  000fc2fa         0   none ,g         * 
+  __s.sdataR
+                                  000ffe20         0   none ,g         * 
+  __e.sdataR
+                                  000ffe20         0   none ,g         * 
+  __s.init_array
+                                  00000080         0   none ,g         * 
+  __e.init_array
+                                  00000080         0   none ,g         * 
+  __s.RLIB
+                                  000000c4         0   none ,g         * 
+  __e.RLIB
+                                  000000c4         0   none ,g         * 
+  __s.SLIB
+                                  0000baf2         0   none ,g         * 
+  __e.SLIB
+                                  0000ed49         0   none ,g         * 
+  __s.option_byte
+                                  000000c0         0   none ,g         * 
+  __e.option_byte
+                                  000000c4         0   none ,g         * 
+  __s.monitor1
+                                  000000ce         0   none ,g         * 
+  __e.monitor1
+                                  000000d8         0   none ,g         * 
+  __s.monitor2
+                                  0001fe00         0   none ,g         * 
+  __e.monitor2
+                                  00020000         0   none ,g         * 
+  __s.security_id
+                                  000000c4         0   none ,g         * 
+  __e.security_id
+                                  000000ce         0   none ,g         * 
+  __s.vect
+                                  00000000         0   none ,g         * 
+  __e.vect
+                                  00000080         0   none ,g         * 
+  __RAM_ADDR_START
+                                  000fbf00         0   none ,g         * 
+  __RAM_ADDR_END
+                                  000ffee0         0   none ,g         * 
+  __STACK_ADDR_START
+                                  000ffe20         0   none ,g         * 
+  __STACK_ADDR_END
+                                  000fc700         0   none ,g         * 
+
+*** Unfilled Areas ***
+
+AREA                                START    END
+
+*** Delete Symbols ***
+
+SYMBOL                                SIZE    INFO

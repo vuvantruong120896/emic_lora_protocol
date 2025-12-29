@@ -1,0 +1,5 @@
+-MAKEUD_LBG="D:\Projects\Emic\LoraSafe\Core\EMIC_LORA_PROTOCOL\HardwareDebug\EMIC_LORA_PROTOCOL_lbg.ud" 
+-cpu=S3 
+-output=EMIC_LORA_PROTOCOL.lib 
+-nologo 
+-lang=c99
