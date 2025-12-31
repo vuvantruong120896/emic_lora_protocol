@@ -61,43 +61,6 @@ void R_Config_CSI20_Create_UserInit(void)
 }
 
 /***********************************************************************************************************************
-* Function Name: r_Config_CSI20_callback_sendend
-* Description  : This function is a callback function when CSI20 finishes transmission.
-* Arguments    : None
-* Return Value : None
-***********************************************************************************************************************/
-static void r_Config_CSI20_callback_sendend(void)
-{
-    /* Start user code for r_Config_CSI20_callback_sendend. Do not edit comment generated here */
-    /* End user code. Do not edit comment generated here */
-}
-
-/***********************************************************************************************************************
-* Function Name: r_Config_CSI20_callback_receiveend
-* Description  : This function is a callback function when CSI20 finishes reception.
-* Arguments    : None
-* Return Value : None
-***********************************************************************************************************************/
-static void r_Config_CSI20_callback_receiveend(void)
-{
-    /* Start user code for r_Config_CSI20_callback_receiveend. Do not edit comment generated here */
-    /* End user code. Do not edit comment generated here */
-}
-
-/***********************************************************************************************************************
-* Function Name: r_Config_CSI20_callback_error
-* Description  : This function is a callback function when CSI20 reception error occurs.
-* Arguments    : err_type -
-*                    error type value
-* Return Value : None
-***********************************************************************************************************************/
-static void r_Config_CSI20_callback_error(uint8_t err_type)
-{
-    /* Start user code for r_Config_CSI20_callback_error. Do not edit comment generated here */
-    /* End user code. Do not edit comment generated here */
-}
-
-/***********************************************************************************************************************
 * Function Name: r_Config_CSI20_interrupt
 * Description  : This function is INTCSI20 interrupt service routine.
 * Arguments    : None
@@ -111,11 +74,7 @@ static void __near r_Config_CSI20_interrupt(void)
     err_type = (uint8_t)(SSR10 & _0001_SAU_OVERRUN_ERROR);
     SIR10 = (uint16_t)err_type;
 
-    if (1U == err_type)
-    {
-        r_Config_CSI20_callback_error(err_type);    /* overrun error occurs */
-    }
-    else
+    if (1U != err_type)
     {
         if (g_csi20_tx_count > 0U)
         {
@@ -139,9 +98,9 @@ static void __near r_Config_CSI20_interrupt(void)
                 SIO20 = 0xFFU;
             }
 
-            g_csi20_tx_count--;
+            g_csi20_tx_count--;      
         }
-        else 
+        else
         {
             if (0U == g_csi20_tx_count)
             {
@@ -154,9 +113,6 @@ static void __near r_Config_CSI20_interrupt(void)
                     sio_dummy = SIO20;
                 }
             }
-
-            r_Config_CSI20_callback_sendend();    /* complete send */
-            r_Config_CSI20_callback_receiveend();    /* complete receive */
         }
     }
 }

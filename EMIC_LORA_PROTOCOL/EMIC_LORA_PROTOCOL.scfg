@@ -357,15 +357,15 @@
                     <item id="Level2" input="" vlaue="0"/>
                     <item id="Level3" input="" vlaue="0"/>
                 </option>
-                <option enabled="true" id="TransEnd" selection="Enable">
+                <option enabled="true" id="TransEnd" selection="Disable">
                     <item id="Enable" input="" vlaue="0"/>
                     <item id="Disable" input="" vlaue="0"/>
                 </option>
-                <option enabled="true" id="RecvEnd" selection="Enable">
+                <option enabled="true" id="RecvEnd" selection="Disable">
                     <item id="Enable" input="" vlaue="0"/>
                     <item id="Disable" input="" vlaue="0"/>
                 </option>
-                <option enabled="true" id="RecvError" selection="Enable">
+                <option enabled="true" id="RecvError" selection="Disable">
                     <item id="Enable" input="" vlaue="0"/>
                     <item id="Disable" input="" vlaue="0"/>
                 </option>

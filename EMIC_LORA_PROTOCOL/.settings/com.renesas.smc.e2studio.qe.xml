@@ -136,16 +136,16 @@
             <Setting id="BSP_CFG_INT_FUNCTION_GUARD" value="0"/>
         </Segment>
         <Segment component="com.renesas.smc.tools.swcomponent.codegenerator.rl78.csi" id="Config_CSI20" source="com.renesas.smc.tools.swcomponent.codegenerator.source">
-            <Setting id="TransEnd" value="Enable"/>
+            <Setting id="TransEnd" value="Disable"/>
             <Setting id="ModeSetting" value="BothMode"/>
             <Setting id="OperationClock" value="CK0"/>
             <Setting id="TransferMode" value="Single"/>
-            <Setting id="RecvError" value="Enable"/>
+            <Setting id="RecvError" value="Disable"/>
             <Setting id="TransClockMode" value="internal"/>
             <Setting id="Bitrate" value="2000000"/>
             <Setting id="Prescaler" value="FCLK0"/>
             <Setting id="TransDir" value="MSB"/>
-            <Setting id="RecvEnd" value="Enable"/>
+            <Setting id="RecvEnd" value="Disable"/>
             <Setting id="DataLength" value="8Bits"/>
             <Setting id="datatiming" value="Type1Item"/>
             <Setting id="INTPriority" value="Level2"/>

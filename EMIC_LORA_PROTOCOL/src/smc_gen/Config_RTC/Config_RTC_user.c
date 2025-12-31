@@ -72,10 +72,6 @@ static void r_Config_RTC_callback_constperiod(void)
     extern void hal_rtc_increment_wakeup_counter(void);
     hal_rtc_increment_wakeup_counter();
     
-    /* User-defined callback for RTC constant-period interrupt (test code) */
-    extern volatile uint32_t g_rtc_test_interrupt_count;
-    g_rtc_test_interrupt_count++;
-    
     /* End user code. Do not edit comment generated here */
 }
 
