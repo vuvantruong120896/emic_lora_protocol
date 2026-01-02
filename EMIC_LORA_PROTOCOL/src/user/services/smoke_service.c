@@ -7,7 +7,8 @@ static uint8_t s_prev_alarm;
 void smoke_service_init(void)
 {
     smoke_sensor_init();
-    s_prev_alarm = 0U;
+    /* Prevent a false rising-edge at boot if the input is already active. */
+    s_prev_alarm = smoke_sensor_is_active();
 }
 
 uint8_t smoke_service_poll_alarm_trigger(void)

@@ -8,6 +8,7 @@
 #include "hal_rtc.h"
 #include "../smc_gen/Config_RTC/Config_RTC.h"
 #include "../smc_gen/general/r_cg_rtc.h"
+#include "../smc_gen/general/r_cg_macrodriver.h"
 
 /* ===================================================================
  * Static Variables
@@ -15,6 +16,7 @@
 
 static uint8_t g_rtc_initialized = 0;
 static volatile uint32_t g_rtc_wakeup_counter = 0;  /* Increments every 0.5s */
+static volatile uint8_t g_rtc_tick_pending = 0;     /* Counts pending half-sec ticks for main loop */
 
 /* ===================================================================
  * Functions
@@ -41,6 +43,7 @@ void hal_rtc_init(void)
     
     /* Reset wakeup counter */
     g_rtc_wakeup_counter = 0;
+    g_rtc_tick_pending = 0;
     
     g_rtc_initialized = 1;
 }
@@ -150,8 +153,11 @@ void hal_rtc_disable_int(void)
  */
 uint8_t hal_rtc_int_is_pending(void)
 {
-    /* RTCIF is global RTC interrupt flag */
-    return (RTCIF != 0) ? 1 : 0;
+    /* Do NOT poll RTCIF here.
+     * When interrupts are enabled, RTCIF behavior is not suitable for main-loop tick polling.
+     * We instead rely on the INTRTC ISR to increment a software pending counter.
+     */
+    return (g_rtc_tick_pending != 0U) ? 1U : 0U;
 }
 
 /**
@@ -160,7 +166,16 @@ uint8_t hal_rtc_int_is_pending(void)
  */
 void hal_rtc_int_clear_flag(void)
 {
-    RTCIF = 0;
+    /* Consume exactly one pending tick, atomically w.r.t ISR updates */
+    DI();
+    if (g_rtc_tick_pending != 0U)
+    {
+        g_rtc_tick_pending--;
+    }
+    EI();
+
+    /* Best-effort clear (harmless if already cleared by hardware/ISR) */
+    RTCIF = 0U;
 }
 
 /* ===================================================================
@@ -372,4 +387,8 @@ uint8_t hal_rtc_is_tx_time(uint16_t short_addr)
 void hal_rtc_increment_wakeup_counter(void)
 {
     g_rtc_wakeup_counter++;
+    if (g_rtc_tick_pending != 0xFFU)
+    {
+        g_rtc_tick_pending++;
+    }
 }

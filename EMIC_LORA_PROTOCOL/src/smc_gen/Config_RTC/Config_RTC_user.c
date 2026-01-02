@@ -37,6 +37,7 @@ Pragma directive
 ***********************************************************************************************************************/
 #pragma interrupt r_Config_RTC_interrupt(vect=INTRTC)
 /* Start user code for pragma. Do not edit comment generated here */
+
 /* End user code. Do not edit comment generated here */
 
 /***********************************************************************************************************************
@@ -44,6 +45,8 @@ Global variables and functions
 ***********************************************************************************************************************/
 extern volatile uint8_t g_rtc_interrupt_flag;
 /* Start user code for global. Do not edit comment generated here */
+extern volatile uint8_t g_rtc_interrupt_flag;
+extern void hal_rtc_increment_wakeup_counter(void);
 /* End user code. Do not edit comment generated here */
 
 /***********************************************************************************************************************
@@ -69,7 +72,6 @@ static void r_Config_RTC_callback_constperiod(void)
     /* Start user code for r_Config_RTC_callback_constperiod. Do not edit comment generated here */
     
     /* Increment wakeup counter for hal_rtc */
-    extern void hal_rtc_increment_wakeup_counter(void);
     hal_rtc_increment_wakeup_counter();
     
     /* End user code. Do not edit comment generated here */

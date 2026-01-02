@@ -6,23 +6,42 @@
 
 static volatile radio_event_t s_ev;
 static volatile uint8_t s_irq_pending;
+static volatile uint8_t s_busy;
 
 static void radio_process_irq_if_needed(void)
 {
     uint16_t irq;
 
-    if (!s_irq_pending)
+    /* Robustness note:
+     * - Normally, DIO1 ISR sets s_irq_pending and we read/clear IRQs in main.
+     * - If INTP0 is accidentally left masked or an edge is missed, the radio's
+     *   IRQ status bits remain set until cleared. While an operation is in-flight
+     *   (s_busy=1), we therefore also poll IRQ status in main to avoid getting
+     *   stuck in WAIT_* states and preventing SX1262 sleep.
+     */
+    if ((s_irq_pending == 0U) && (s_busy == 0U))
     {
         return;
     }
 
-    /* Clear pending first to coalesce bursts */
-    s_irq_pending = 0U;
-
-    irq = sx1262_get_irq_status();
-    if (irq != 0U)
+    /* Clear pending first to coalesce bursts (best effort). */
     {
-        sx1262_clear_irq_status(irq);
+        uint8_t had_pending = s_irq_pending;
+        s_irq_pending = 0U;
+
+        irq = sx1262_get_irq_status();
+        if (irq != 0U)
+        {
+            sx1262_clear_irq_status(irq);
+        }
+        else if (had_pending != 0U)
+        {
+            /* Spurious/missed condition: an interrupt happened but no IRQ bits are set.
+             * Force a recoverable error so the upper layer can return to IDLE.
+             */
+            s_ev = RADIO_EVENT_ERROR;
+            return;
+        }
     }
 
     if ((irq & (uint16_t)SX1262_IRQ_CAD_DETECTED) != 0U)
@@ -67,6 +86,7 @@ void radio_init(void)
 
     s_ev = RADIO_EVENT_NONE;
     s_irq_pending = 0U;
+    s_busy = 0U;
 
     sx1262_init(&cfg);
 }
@@ -74,18 +94,24 @@ void radio_init(void)
 void radio_request_cad(uint8_t cad_symbols)
 {
     s_ev = RADIO_EVENT_NONE;
+    s_busy = 1U;
+    sx1262_wakeup();
     sx1262_start_cad(cad_symbols);
 }
 
 void radio_request_rx(uint16_t timeout_ms)
 {
     s_ev = RADIO_EVENT_NONE;
+    s_busy = 1U;
+    sx1262_wakeup();
     sx1262_start_rx(timeout_ms);
 }
 
 void radio_request_tx(const uint8_t *payload, uint8_t len)
 {
     s_ev = RADIO_EVENT_NONE;
+    s_busy = 1U;
+    sx1262_wakeup();
     sx1262_start_tx(payload, len);
 }
 
@@ -96,8 +122,33 @@ radio_event_t radio_poll_event(void)
     {
         radio_event_t ev = s_ev;
         s_ev = RADIO_EVENT_NONE;
+        if (ev != RADIO_EVENT_NONE)
+        {
+            s_busy = 0U;
+        }
         return ev;
     }
+}
+
+uint8_t radio_is_busy(void)
+{
+    return s_busy;
+}
+
+void radio_sleep_if_idle(void)
+{
+    /* Do not enter sleep if we are expecting to process an IRQ in main. */
+    if ((s_busy != 0U) || (s_irq_pending != 0U))
+    {
+        return;
+    }
+
+    sx1262_sleep();
+}
+
+uint8_t radio_is_sleeping(void)
+{
+    return sx1262_is_sleeping();
 }
 
 uint8_t radio_read_rx_payload(uint8_t *dst, uint8_t dst_max)

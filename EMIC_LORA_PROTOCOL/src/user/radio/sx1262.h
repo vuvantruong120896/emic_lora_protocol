@@ -37,6 +37,13 @@ void sx1262_start_cad(uint8_t cad_symbols);
 void sx1262_start_rx(uint16_t timeout_ms);
 void sx1262_start_tx(const uint8_t *payload, uint8_t len);
 
+/* Power management: put the radio to sleep when idle, and wake it up before starting
+ * CAD/RX/TX. Uses warm-start sleep so configuration is retained.
+ */
+void sx1262_sleep(void);
+void sx1262_wakeup(void);
+uint8_t sx1262_is_sleeping(void);
+
 uint16_t sx1262_get_irq_status(void);
 void sx1262_clear_irq_status(uint16_t mask);
 

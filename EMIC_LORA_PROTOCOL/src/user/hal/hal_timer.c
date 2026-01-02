@@ -34,6 +34,7 @@
  * =================================================================== */
 
 static uint8_t g_tau0_initialized = 0; /* Initialization guard */
+static uint8_t g_tau0_running = 0;     /* Running state guard */
 
 /* ===================================================================
  * Functions
@@ -51,9 +52,10 @@ void hal_timer_init(void)
 
     /* Call Smart Config initialization */
     R_Config_TAU0_0_Create();
-    
-    /* Start TAU0 counter (begins CH0 and CH3) */
-    R_Config_TAU0_0_Start();
+
+    /* Keep TAU0 stopped by default. Start only when duty > 0 to save power. */
+    g_tau0_running = 0U;
+    TDR03 = 0U; /* silent */
     
     g_tau0_initialized = 1;
 }
@@ -70,7 +72,8 @@ void hal_timer_deinit(void)
 
     /* Stop TAU0 counter */
     R_Config_TAU0_0_Stop();
-    
+
+    g_tau0_running = 0U;
     g_tau0_initialized = 0;
 }
 
@@ -89,13 +92,35 @@ void hal_timer_set_pwm_duty(uint8_t duty_percent)
 {
     uint16_t on_ticks;
 
+    if (!g_tau0_initialized)
+    {
+        hal_timer_init();
+    }
+
     /* Clamp duty to 0-100% */
     if (duty_percent > 100) {
         duty_percent = 100;
     }
 
-    /* Calculate on-time ticks */
-    /* on_ticks = (TDR00 * duty%) / 100 */
+    /* Fast path: 0% duty = stop PWM to save power */
+    if (duty_percent == 0U)
+    {
+        TDR03 = 0U;
+        if (g_tau0_running)
+        {
+            R_Config_TAU0_0_Stop();
+            g_tau0_running = 0U;
+        }
+        return;
+    }
+
+    if (!g_tau0_running)
+    {
+        R_Config_TAU0_0_Start();
+        g_tau0_running = 1U;
+    }
+
+    /* Calculate on-time ticks: on_ticks = (TDR00 * duty%) / 100 */
     on_ticks = (TAU0_PERIOD_TICKS * duty_percent) / 100;
     
     /* Cap at period value */

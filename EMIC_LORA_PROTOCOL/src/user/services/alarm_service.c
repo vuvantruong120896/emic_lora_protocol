@@ -1,8 +1,7 @@
 #include "alarm_service.h"
 
-#include "../hal/hal_gpio.h"
-
 #include "../drv/buzzer/buzzer.h"
+#include "../drv/led/led.h"
 
 static uint8_t s_local_alarm;
 static uint8_t s_remote_alarm;
@@ -24,9 +23,9 @@ static void alarm_apply_outputs(void)
         buzzer_set_enabled(0U);
     }
 
-    /* LEDs: local = red, remote = green (as per existing HAL comments) */
-    hal_gpio_led_red_set(s_local_alarm ? GPIO_HIGH : GPIO_LOW);
-    hal_gpio_led_green_set(s_remote_alarm ? GPIO_HIGH : GPIO_LOW);
+    /* LEDs: local = red, remote = green */
+    led_set(LED_ID_RED, s_local_alarm);
+    led_set(LED_ID_GREEN, s_remote_alarm);
 }
 
 void alarm_service_init(void)
@@ -35,7 +34,7 @@ void alarm_service_init(void)
     s_remote_alarm = 0U;
     s_beep_phase = 0U;
 
-    hal_gpio_led_all_off();
+    led_init();
     buzzer_init();
 }
 
@@ -58,4 +57,9 @@ void alarm_service_on_tick_halfsec(void)
         s_beep_phase = (s_beep_phase != 0U) ? 0U : 1U;
         alarm_apply_outputs();
     }
+}
+
+uint8_t alarm_service_is_active(void)
+{
+    return (uint8_t)(((s_local_alarm != 0U) || (s_remote_alarm != 0U)) ? 1U : 0U);
 }

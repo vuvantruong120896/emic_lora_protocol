@@ -5,6 +5,7 @@
 #include "../hal/hal_gpio.h"
 #include "../hal/hal_spi.h"
 #include "../hal/hal_systick.h"
+#include "../hal/hal_intc.h"
 
 /* SX126x command opcodes */
 #define SX126X_SET_SLEEP                  0x84
@@ -46,6 +47,9 @@
 #define SX126X_LORA_IQ_NORMAL             0x00
 
 static sx1262_config_t s_cfg;
+static uint8_t s_sleeping;
+
+static void sx1262_set_dio1_irq(uint16_t mask);
 
 static void sx1262_wait_while_busy(void)
 {
@@ -79,7 +83,10 @@ static void sx1262_write_command(uint8_t opcode, const uint8_t *buf, uint8_t len
     }
 
     sx1262_nss_deselect();
-    sx1262_wait_while_busy();
+
+    if( opcode != SX126X_SET_SLEEP ) {
+        sx1262_wait_while_busy();   
+    }
 }
 
 static void sx1262_read_command(uint8_t opcode, const uint8_t *params, uint8_t params_len, uint8_t *out, uint8_t out_len)
@@ -201,6 +208,58 @@ static void sx1262_set_standby(void)
     sx1262_write_command(SX126X_SET_STANDBY, &b, 1);
 }
 
+uint8_t sx1262_is_sleeping(void)
+{
+    return (s_sleeping != 0U) ? 1U : 0U;
+}
+
+void sx1262_wakeup(void)
+{
+    if (s_sleeping == 0U)
+    {
+        return;
+    }
+
+    /* Any SPI command with NSS low will wake the radio from sleep.
+     * Use a short, safe read (GET_IRQ_STATUS) and then go to standby.
+     */
+    {
+        uint8_t out[2];
+        sx1262_read_command(SX126X_GET_IRQ_STATUS, NULL, 0, out, 2);
+        (void)out[0];
+        (void)out[1];
+    }
+
+    sx1262_set_standby();
+    s_sleeping = 0U;
+}
+
+void sx1262_sleep(void)
+{
+    /* Only sleep from an idle context (caller ensures no in-flight IRQ wait). */
+    if (s_sleeping != 0U)
+    {
+        return;
+    }
+
+    /* Disable IRQ routing (best-effort) and clear any pending IRQs. */
+    sx1262_set_dio1_irq(0U);
+    sx1262_clear_irq_status(0xFFFFU);
+
+    /* Put RF switch in RX/off path (board-specific; LOW is RX path in this project). */
+    hal_gpio_lora_ant_sw_set(GPIO_LOW);
+
+    /* Warm-start sleep: retain configuration.
+     * SX126x sleepConfig: 0x04 is commonly used for warm start (no RTC wake).
+     */
+    {
+        uint8_t cfg = 0x04U;
+        sx1262_write_command(SX126X_SET_SLEEP, &cfg, 1);
+    }
+
+    s_sleeping = 1U;
+}
+
 static void sx1262_set_dio1_irq(uint16_t mask)
 {
     uint8_t b[8];
@@ -228,6 +287,7 @@ void sx1262_init(const sx1262_config_t *cfg)
     /* Ensure systick + SPI are running for delays and SPI */
     (void)hal_systick_init();
     (void)hal_spi_init();
+    (void)hal_intc_enable(HAL_INTC_INTP0);
 
     /* Reset SX1262 */
     hal_gpio_lora_cs_set(GPIO_HIGH);
@@ -242,10 +302,16 @@ void sx1262_init(const sx1262_config_t *cfg)
     sx1262_set_standby();
     sx1262_clear_irq_status(0xFFFFU);
     sx1262_apply_lora_params();
+
+    s_sleeping = 0U;
+
+    /* TAU0_1 systick is only needed for init delays; stop it to save power. */
+    hal_systick_stop();
 }
 
 void sx1262_start_cad(uint8_t cad_symbols)
 {
+    sx1262_wakeup();
     uint8_t b[7];
     uint8_t cad_sym;
 
@@ -278,6 +344,7 @@ void sx1262_start_cad(uint8_t cad_symbols)
 
 void sx1262_start_rx(uint16_t timeout_ms)
 {
+    sx1262_wakeup();
     uint8_t b[3];
     uint32_t t;
 
@@ -296,6 +363,7 @@ void sx1262_start_rx(uint16_t timeout_ms)
 
 void sx1262_start_tx(const uint8_t *payload, uint8_t len)
 {
+    sx1262_wakeup();
     uint8_t b[6];
 
     if (payload == NULL || len == 0)

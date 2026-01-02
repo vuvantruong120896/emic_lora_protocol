@@ -23,6 +23,17 @@ void radio_request_tx(const uint8_t *payload, uint8_t len);
 
 radio_event_t radio_poll_event(void);
 
+/* Returns 1 if a CAD/RX/TX operation is in-flight and we are waiting for DIO1 IRQ. */
+uint8_t radio_is_busy(void);
+
+/* Put SX1262 into sleep when fully idle (no in-flight op, no pending IRQ to process).
+ * Safe to call repeatedly.
+ */
+void radio_sleep_if_idle(void);
+
+/* Returns 1 if the radio is currently in SX1262 sleep mode. */
+uint8_t radio_is_sleeping(void);
+
 /* Read last received payload (valid after RADIO_EVENT_RX_DONE).
  * Returns number of bytes copied.
  */

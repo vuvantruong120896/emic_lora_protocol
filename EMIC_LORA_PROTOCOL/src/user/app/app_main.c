@@ -93,10 +93,16 @@ void app_run_forever(void)
 {
     for (;;)
     {
+        /* Poll for RTC tick */
         app_on_rtc_tick_poll();
+
+        /* Run LoRa link state machine */
         lora_link_run();
+
+        /* Handle app events */
         app_handle_events();
 
+        /* Enter low-power idle mode */
         power_service_idle();
     }
 }

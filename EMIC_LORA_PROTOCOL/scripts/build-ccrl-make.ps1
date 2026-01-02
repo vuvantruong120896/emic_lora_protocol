@@ -57,6 +57,32 @@ function Find-MakeFallback([string]$workspaceRoot) {
   return $null
 }
 
+function Find-ToolFallback([string]$exeName) {
+  $candidates = @()
+
+  if ($env:E2STUDIO_HOME) { $candidates += $env:E2STUDIO_HOME }
+  if ($env:E2STUDIO) { $candidates += $env:E2STUDIO }
+  if ($env:RENESAS_E2STUDIO_HOME) { $candidates += $env:RENESAS_E2STUDIO_HOME }
+
+  $candidates += @(
+    "C:\\Renesas",
+    "C:\\Program Files\\Renesas Electronics",
+    "C:\\Program Files (x86)\\Renesas Electronics"
+  )
+
+  foreach ($root in $candidates | Where-Object { $_ -and (Test-Path $_) } | Select-Object -Unique) {
+    try {
+      $hit = Get-ChildItem -Path $root -Filter $exeName -File -Recurse -ErrorAction SilentlyContinue |
+        Select-Object -First 1
+      if ($hit) { return $hit.FullName }
+    } catch {
+      # ignore and continue
+    }
+  }
+
+  return $null
+}
+
 $workspaceRoot = Resolve-WorkspaceRoot
 $cfgDir = Join-Path $workspaceRoot $Config
 $makefile = Join-Path $cfgDir "makefile"
@@ -82,6 +108,18 @@ if (-not $makeExe) {
   throw $msg
 }
 
+# Some generated makefiles call Renesas tools that may not be on PATH (e.g. renesas_cc_converter).
+# If missing, try to locate under e2studio and prepend to PATH for this build process only.
+$ccConverter = Find-ExeOnPath "renesas_cc_converter"
+if (-not $ccConverter) {
+  $ccConverterExe = Find-ToolFallback "renesas_cc_converter.exe"
+  if ($ccConverterExe) {
+    $ccConverterDir = Split-Path -Parent $ccConverterExe
+    $env:PATH = "$ccConverterDir;$env:PATH"
+    Write-Host "[CCRL] Added to PATH: $ccConverterDir (renesas_cc_converter)"
+  }
+}
+
 $baseArgs = @("-C", $cfgDir, "-f", "makefile")
 if ($Jobs -gt 0) {
   $baseArgs += @("-j", "$Jobs")
@@ -92,7 +130,14 @@ Write-Host "[CCRL] config: $Config"
 Write-Host "[CCRL] target: $Target" + ($(if ($Then) { " then $Then" } else { "" }))
 
 & $makeExe @baseArgs $Target
-if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+$exitCode = $LASTEXITCODE
+if ($exitCode -ne 0) {
+  if ($Target -eq "clean") {
+    Write-Host "[CCRL] Warning: make clean exited with $exitCode (continuing)."
+  } else {
+    exit $exitCode
+  }
+}
 
 if ($Then) {
   & $makeExe @baseArgs $Then

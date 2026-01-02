@@ -53,6 +53,12 @@ Global variables and functions
 void R_Config_PORT_Create_UserInit(void)
 {
     /* Start user code for user init. Do not edit comment generated here */
+
+    /* P7.4 (BUTTON_PIN) is used as a digital input.
+     * Enable on-chip pull-up to avoid a floating input causing false triggers.
+     */
+    PU7 |= _10_PUn4_PULLUP_ON;
+
     /* End user code. Do not edit comment generated here */
 }
 

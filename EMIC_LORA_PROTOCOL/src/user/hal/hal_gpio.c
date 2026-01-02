@@ -6,6 +6,7 @@
 
 #include <stdint.h>
 #include "hal_gpio.h"
+#include "hal_intc.h"
 #include "../smc_gen/Config_PORT/Config_PORT.h"
 #include "../smc_gen/r_pincfg/Pin.h"
 #include "r_smc_entry.h"
@@ -17,14 +18,18 @@
 
 /**
  * hal_gpio_init()
- * Initialize all GPIO ports using Smart Config settings
- * Calls R_Config_PORT_Create() and R_Pins_Create() from smc_gen
+ * Initialize all GPIO ports and interrupt controller using Smart Config settings
+ * Calls R_Config_PORT_Create(), R_Pins_Create() from smc_gen
+ * and initializes INTC via hal_intc_init()
  */
 void hal_gpio_init(void)
 {
     /* Initialize PORT module using Smart Config generated code */
     R_Config_PORT_Create();
     R_Pins_Create();
+
+    /* Initialize Interrupt Controller (INTP0, INTP8 setup, but disabled by default) */
+    hal_intc_init();
 }
 
 void hal_gpio_deinit(void)
@@ -131,6 +136,7 @@ void hal_gpio_led_all_off(void)
     PIN_WRITE(LED_RED_PIN) = 1;
     PIN_WRITE(LED_GREEN_PIN) = 1;
 }
+
 
 /*=====================================================================
  * Buzzer Control Pins

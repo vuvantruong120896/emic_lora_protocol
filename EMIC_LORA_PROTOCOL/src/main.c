@@ -29,12 +29,15 @@
 
 int main(void)
 {
+    /* Enable interrupts */
     EI();
 
+    /* Initialize application */
     app_init();
 
     while (1)
     {
+        /* Run application main loop */
         app_run_forever();
     }
 }

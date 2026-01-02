@@ -13,8 +13,14 @@
  * RTC constant-period ISR increments wakeup counter every 0.5s.
  */
 #define HALFSEC_PER_SEC   (2U)
-#define HALFSEC_PER_2S    (4U)
-#define HALFSEC_PER_240S  (480U)
+
+/* Derive scheduling intervals from app_config.h to keep docs/config/code consistent.
+ * Note: RTC tick resolution is 0.5s, so these are quantized to half-seconds.
+ */
+#define MS_PER_HALFSEC             (500UL)
+#define HALFSEC_FROM_MS_ROUND(ms)  ((uint32_t)(((uint32_t)(ms) + (uint32_t)(MS_PER_HALFSEC / 2UL)) / (uint32_t)MS_PER_HALFSEC))
+#define CAD_PERIOD_HALFSEC         (HALFSEC_FROM_MS_ROUND(APP_CAD_SCAN_PERIOD_MS))
+#define HEARTBEAT_PERIOD_HALFSEC   ((uint32_t)APP_HEARTBEAT_PERIOD_S * (uint32_t)HALFSEC_PER_SEC)
 
 typedef enum
 {
@@ -81,10 +87,10 @@ static void schedule_next_heartbeat(uint32_t now)
 {
     int16_t j = jitter_halfsec((int16_t)APP_HEARTBEAT_JITTER_S);
     /* j can be negative; keep computation signed to avoid underflow.
-     * HALFSEC_PER_240S is the nominal 240s interval in half-seconds.
+     * HEARTBEAT_PERIOD_HALFSEC is the nominal heartbeat interval in half-seconds.
      */
     {
-        int32_t next = (int32_t)now + (int32_t)HALFSEC_PER_240S + (int32_t)j;
+        int32_t next = (int32_t)now + (int32_t)HEARTBEAT_PERIOD_HALFSEC + (int32_t)j;
         if (next < 0)
         {
             next = 0;
@@ -107,7 +113,8 @@ void lora_link_init(uint8_t net_id, uint32_t dev_id)
 
     {
         uint32_t now = now_halfsec();
-        s_next_cad_halfsec = now + HALFSEC_PER_2S;
+        /* CAD paging schedule (~2s) */
+        s_next_cad_halfsec = now + CAD_PERIOD_HALFSEC;
         schedule_next_heartbeat(now);
     }
 
@@ -219,13 +226,13 @@ void lora_link_run(void)
 
         if (now >= s_next_cad_halfsec)
         {
-            /* Request CAD every 2 seconds */
+            /* Request CAD periodically (nominal ~2 seconds) */
             if (s_state == LINK_STATE_IDLE)
             {
                 radio_request_cad(APP_CAD_SYMBOLS);
                 s_state = LINK_STATE_WAIT_CAD;
             }
-            s_next_cad_halfsec = now + HALFSEC_PER_2S;
+            s_next_cad_halfsec = now + CAD_PERIOD_HALFSEC;
         }
     }
 
