@@ -7,6 +7,8 @@
 #include "../hal/hal_systick.h"
 #include "../hal/hal_intc.h"
 
+#include "../utils/log_control.h"
+
 /* SX126x command opcodes */
 #define SX126X_SET_SLEEP                  0x84
 #define SX126X_SET_STANDBY                0x80
@@ -23,10 +25,13 @@
 #define SX126X_SET_PACKET_PARAMS          0x8C
 #define SX126X_SET_DIO_IRQ_PARAMS         0x08
 #define SX126X_SET_CAD_PARAMS             0x88
+#define SX126X_SET_PA_CONFIG              0x95
 
 #define SX126X_GET_IRQ_STATUS             0x12
 #define SX126X_CLEAR_IRQ_STATUS           0x02
 #define SX126X_GET_RX_BUFFER_STATUS       0x13
+
+#define SX126X_GET_STATUS                 0xC0
 
 #define SX126X_WRITE_BUFFER               0x0E
 #define SX126X_READ_BUFFER                0x1E
@@ -54,10 +59,16 @@ static void sx1262_set_dio1_irq(uint16_t mask);
 static void sx1262_wait_while_busy(void)
 {
     /* Busy pin is HIGH when radio is busy. */
+    uint32_t guard = 0UL;
     while (hal_gpio_lora_busy_get() == GPIO_HIGH)
     {
         /* short wait to avoid a hot loop */
         __nop();
+        if (++guard > 200000UL)
+        {
+            log_error("%s", "SX1262 BUSY stuck");
+            break;
+        }
     }
 }
 
@@ -199,6 +210,15 @@ static void sx1262_apply_lora_params(void)
     buf[1] = 0x09; /* 40us ramp (typical) */
     sx1262_write_command(SX126X_SET_TX_PARAMS, buf, 2);
 
+    /* PA config (required after reset for SX1262 to actually drive RF).
+     * Values below are the commonly used PA_BOOST configuration from Semtech reference drivers.
+     */
+    buf[0] = 0x04; /* paDutyCycle */
+    buf[1] = 0x07; /* hpMax */
+    buf[2] = 0x00; /* deviceSel: 0 = SX1262 */
+    buf[3] = 0x01; /* paLut */
+    sx1262_write_command(SX126X_SET_PA_CONFIG, buf, 4);
+
     /* IRQ routing: default enable RX/CAD/TX/timeout as needed (set per operation) */
 }
 
@@ -220,15 +240,17 @@ void sx1262_wakeup(void)
         return;
     }
 
-    /* Any SPI command with NSS low will wake the radio from sleep.
-     * Use a short, safe read (GET_IRQ_STATUS) and then go to standby.
+    /* Wake-up sequence: pulse NSS low and issue GET_STATUS.
+     * Avoid relying on higher-level read helpers here to reduce chances of
+     * deadlocking on BUSY/SPI when coming out of STOP.
      */
-    {
-        uint8_t out[2];
-        sx1262_read_command(SX126X_GET_IRQ_STATUS, NULL, 0, out, 2);
-        (void)out[0];
-        (void)out[1];
-    }
+    sx1262_nss_select();
+    (void)hal_spi_transfer(SX126X_GET_STATUS);
+    (void)hal_spi_transfer(0x00);
+    sx1262_nss_deselect();
+
+    /* Wait for the radio to become ready (best-effort with timeout). */
+    sx1262_wait_while_busy();
 
     sx1262_set_standby();
     s_sleeping = 0U;
@@ -241,6 +263,8 @@ void sx1262_sleep(void)
     {
         return;
     }
+
+    log_debug("%s", "SX1262 sleep");
 
     /* Disable IRQ routing (best-effort) and clear any pending IRQs. */
     sx1262_set_dio1_irq(0U);
@@ -286,6 +310,7 @@ void sx1262_init(const sx1262_config_t *cfg)
 
     /* Ensure systick + SPI are running for delays and SPI */
     (void)hal_systick_init();
+    hal_systick_start();
     (void)hal_spi_init();
     (void)hal_intc_enable(HAL_INTC_INTP0);
 
@@ -305,13 +330,12 @@ void sx1262_init(const sx1262_config_t *cfg)
 
     s_sleeping = 0U;
 
-    /* TAU0_1 systick is only needed for init delays; stop it to save power. */
+    /* Systick is only needed for init delays; stop it to save power. */
     hal_systick_stop();
 }
 
 void sx1262_start_cad(uint8_t cad_symbols)
 {
-    sx1262_wakeup();
     uint8_t b[7];
     uint8_t cad_sym;
 
@@ -344,7 +368,6 @@ void sx1262_start_cad(uint8_t cad_symbols)
 
 void sx1262_start_rx(uint16_t timeout_ms)
 {
-    sx1262_wakeup();
     uint8_t b[3];
     uint32_t t;
 
@@ -363,13 +386,15 @@ void sx1262_start_rx(uint16_t timeout_ms)
 
 void sx1262_start_tx(const uint8_t *payload, uint8_t len)
 {
-    sx1262_wakeup();
     uint8_t b[6];
 
     if (payload == NULL || len == 0)
     {
         return;
     }
+
+    /* Ensure we are in a known mode before programming FIFO/params. */
+    sx1262_set_standby();
 
     /* Update packet params payload length */
     b[0] = (uint8_t)((s_cfg.preamble_symbols >> 8) & 0xFFU);

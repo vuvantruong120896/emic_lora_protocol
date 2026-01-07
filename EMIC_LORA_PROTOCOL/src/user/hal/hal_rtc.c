@@ -46,6 +46,8 @@ void hal_rtc_init(void)
     g_rtc_tick_pending = 0;
     
     g_rtc_initialized = 1;
+
+    hal_rtc_enable_int(HAL_RTC_INT_HALFSEC);
 }
 
 /**

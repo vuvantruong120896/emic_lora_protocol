@@ -18,24 +18,24 @@
 ***********************************************************************************************************************/
 
 /***********************************************************************************************************************
-* File Name        : Config_TAU0_1_user.c
-* Component Version: 1.5.0
+* File Name        : r_cg_itl_common_user.c
+* Version          : 1.0.40
 * Device(s)        : R7F100GGGxFB
-* Description      : This file implements device driver for Config_TAU0_1.
+* Description      : None
 ***********************************************************************************************************************/
 /***********************************************************************************************************************
 Includes
 ***********************************************************************************************************************/
 #include "r_cg_macrodriver.h"
 #include "r_cg_userdefine.h"
-#include "Config_TAU0_1.h"
+#include "Config_ITL000_ITL001_ITL012_ITL013.h"
 /* Start user code for include. Do not edit comment generated here */
 /* End user code. Do not edit comment generated here */
 
 /***********************************************************************************************************************
 Pragma directive
 ***********************************************************************************************************************/
-#pragma interrupt r_Config_TAU0_1_interrupt(vect=INTTM01)
+#pragma interrupt r_itl_interrupt(vect=INTITL)
 /* Start user code for pragma. Do not edit comment generated here */
 /* End user code. Do not edit comment generated here */
 
@@ -43,44 +43,21 @@ Pragma directive
 Global variables and functions
 ***********************************************************************************************************************/
 /* Start user code for global. Do not edit comment generated here */
-
-/***********************************************************************************************************************
-* Function Name: r_Config_TAU0_1_callback_systick
-* Description  : System tick callback - called every 1ms from ISR.
-* Arguments    : None
-* Return Value : None
-* Note         : Declared in hal_systick.c, called here from ISR context
-***********************************************************************************************************************/
-extern void r_Config_TAU0_1_callback_systick(void);
-
 /* End user code. Do not edit comment generated here */
 
 /***********************************************************************************************************************
-* Function Name: R_Config_TAU0_1_Create_UserInit
-* Description  : This function adds user code after initializing the TAU0 channel 1.
+* Function Name: r_itl_interrupt
+* Description  : This function is INTITL interrupt service routine.
 * Arguments    : None
 * Return Value : None
 ***********************************************************************************************************************/
-void R_Config_TAU0_1_Create_UserInit(void)
+static void __near r_itl_interrupt(void)
 {
-    /* Start user code for user init. Do not edit comment generated here */
-    /* End user code. Do not edit comment generated here */
-}
-
-/***********************************************************************************************************************
-* Function Name: r_Config_TAU0_1_interrupt
-* Description  : This function is INTTM01 interrupt service routine.
-* Arguments    : None
-* Return Value : None
-***********************************************************************************************************************/
-static void __near r_Config_TAU0_1_interrupt(void)
-{
-    /* Start user code for r_Config_TAU0_1_interrupt. Do not edit comment generated here */
-    /* Clear interrupt flag */
-    TMIF01 = 0U;
-    /* Call systick callback (1ms tick) */
-    r_Config_TAU0_1_callback_systick();
-    /* End user code. Do not edit comment generated here */
+    if (_01_ITL_CHANNEL0_COUNT_MATCH_DETECTE == (ITLS0 & _01_ITL_CHANNEL0_COUNT_MATCH_DETECTE))
+    {
+        ITLS0 &= (uint8_t)~_01_ITL_CHANNEL0_COUNT_MATCH_DETECTE;
+        R_Config_ITL000_ITL001_ITL012_ITL013_Callback_Shared_Interrupt();
+    }
 }
 
 /* Start user code for adding. Do not edit comment generated here */

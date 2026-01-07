@@ -18,19 +18,14 @@
 ***********************************************************************************************************************/
 
 /***********************************************************************************************************************
-* File Name        : Config_TAU0_1.h
-* Component Version: 1.5.0
+* File Name        : r_cg_itl_common.h
+* Version          : 1.0.40
 * Device(s)        : R7F100GGGxFB
-* Description      : This file implements device driver for Config_TAU0_1.
+* Description      : Common header file for ITL peripheral.
 ***********************************************************************************************************************/
 
-/***********************************************************************************************************************
-Includes
-***********************************************************************************************************************/
-#include "r_cg_tau.h"
-
-#ifndef CFG_Config_TAU0_1_H
-#define CFG_Config_TAU0_1_H
+#ifndef ITL_COMMON_H
+#define ITL_COMMON_H
 
 /***********************************************************************************************************************
 Macro definitions (Register bit)
@@ -39,7 +34,6 @@ Macro definitions (Register bit)
 /***********************************************************************************************************************
 Macro definitions
 ***********************************************************************************************************************/
-#define _1F3F_TAU_TDR01_VALUE               (0x1F3FU)    /* 16-bit timer data register 01 (TDR01) */
 
 /***********************************************************************************************************************
 Typedef definitions
@@ -48,10 +42,13 @@ Typedef definitions
 /***********************************************************************************************************************
 Global functions
 ***********************************************************************************************************************/
-void R_Config_TAU0_1_Create(void);
-void R_Config_TAU0_1_Start(void);
-void R_Config_TAU0_1_Stop(void);
-void R_Config_TAU0_1_Create_UserInit(void);
+void R_ITL_Create(void);
+void R_ITL_Start_Interrupt(void);
+void R_ITL_Stop_Interrupt(void);
+void R_ITL_Set_PowerOn(void);
+void R_ITL_Set_PowerOff(void);
+void R_ITL_Set_Reset(void);
+void R_ITL_Release_Reset(void);
 /* Start user code for function. Do not edit comment generated here */
 /* End user code. Do not edit comment generated here */
 #endif

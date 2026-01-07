@@ -1,30 +1,28 @@
 /**
  * ============================================================================
  * File: hal_systick.h
- * Brief: System tick HAL - 1ms periodic interrupt using TAU0_1
+ * Brief: System tick HAL - periodic tick using 32-bit interval timer (ITL)
  * 
  * Description:
- *   Provides 1ms system tick generation using TAU0 Channel 1 (TAU0_1).
- *   TAU0_1 operates in interval timer mode at 8 MHz, generating regular
- *   1ms interrupts for real-time system tasks.
+ *   Provides a periodic system tick using the RL78 G23 32-bit interval timer (ITL).
+ *   ITL is clocked from the subsystem clock (FSXP, typically 32.768 kHz) so it can
+ *   keep running in both STOP and HALT modes.
  * 
  * Configuration:
- *   - Clock Source: 8 MHz (FCLK)
- *   - Mode: Interval Timer
- *   - Period: 1ms (8000 counts at 8 MHz)
- *   - Interrupt Vector: INTTM01
- *   - Interrupt Period: 1000 µs = 1 ms
+ *   - Clock Source: FSXP (subclock)
+ *   - Mode: 32-bit interval timer
+ *   - Period: Defined in SMC (see smc_gen Config_ITL* compare value)
+ *   - Interrupt Vector: INTITL
  * 
  * Usage:
- *   1. Call hal_systick_init() to enable the timer
+ *   1. Call hal_systick_init() to enable the timer + interrupt
  *   2. Register a callback via hal_systick_set_callback()
- *   3. Callback fires every 1ms from ISR context
- *   4. Use hal_systick_get_ms() to read elapsed milliseconds
+ *   3. Callback fires every tick from ISR context
+ *   4. Use hal_systick_get_ms() to read elapsed tick count (nominal ms)
  * 
  * Notes:
- *   - Uses TAU0_1 INTTM01 interrupt handler from Smart Config
- *   - Callback runs at interrupt level - keep it short
- *   - Does not use blocking waits (see hal_timer.h for microsecond delays)
+ *   - ISR is owned by SMC; hal_systick is called from the SMC user callback.
+ *   - Callback runs at interrupt level - keep it short.
  * 
  * ============================================================================
  */
@@ -41,10 +39,9 @@
 typedef void (*hal_systick_callback_t)(void);
 
 /**
- * Initialize the 1ms system tick
+ * Initialize the system tick
  * 
- * Enables TAU0_1 (Channel 1) in interval timer mode with 1ms period.
- * Registers ISR entry point and enables INTTM01 interrupt.
+ * Enables ITL channel + INTITL interrupt.
  * 
  * @return 0 on success, -1 on error
  */
@@ -53,15 +50,14 @@ int hal_systick_init(void);
 /**
  * Start the system tick counter
  * 
- * Enables INTTM01 interrupt and starts TAU0_1 counting.
- * Call this after hal_systick_init() if not auto-starting.
+ * Enables INTITL interrupt and starts ITL channel.
  */
 void hal_systick_start(void);
 
 /**
  * Stop the system tick counter
  * 
- * Disables INTTM01 interrupt and stops TAU0_1.
+ * Disables INTITL interrupt and stops ITL channel.
  */
 void hal_systick_stop(void);
 

@@ -18,89 +18,43 @@
 ***********************************************************************************************************************/
 
 /***********************************************************************************************************************
-* File Name        : r_cg_tau_common.c
-* Version          : 1.0.40
+* File Name        : Config_ITL000_ITL001_ITL012_ITL013.h
+* Component Version: 1.5.0
 * Device(s)        : R7F100GGGxFB
-* Description      : None
+* Description      : This file implements device driver for Config_ITL000_ITL001_ITL012_ITL013.
 ***********************************************************************************************************************/
+
 /***********************************************************************************************************************
 Includes
 ***********************************************************************************************************************/
-#include "r_cg_macrodriver.h"
-#include "r_cg_userdefine.h"
-#include "Config_TAU0_0.h"
-#include "r_cg_tau_common.h"
-/* Start user code for include. Do not edit comment generated here */
+#include "r_cg_itl.h"
+
+#ifndef CFG_Config_ITL000_ITL001_ITL012_ITL013_H
+#define CFG_Config_ITL000_ITL001_ITL012_ITL013_H
+
+/***********************************************************************************************************************
+Macro definitions (Register bit)
+***********************************************************************************************************************/
+
+/***********************************************************************************************************************
+Macro definitions
+***********************************************************************************************************************/
+#define _0020_ITL_ITLCMP00_VALUE                   (0x0020U)    /* lower 16-bit compare data register */
+#define _0000_ITL_ITLCMP01_VALUE                   (0x0000U)    /* higher 16-bit compare data register */
+
+/***********************************************************************************************************************
+Typedef definitions
+***********************************************************************************************************************/
+
+/***********************************************************************************************************************
+Global functions
+***********************************************************************************************************************/
+void R_Config_ITL000_ITL001_ITL012_ITL013_Create(void);
+void R_Config_ITL000_ITL001_ITL012_ITL013_Start(void);
+void R_Config_ITL000_ITL001_ITL012_ITL013_Stop(void);
+void R_Config_ITL000_ITL001_ITL012_ITL013_Set_OperationMode(void);
+void R_Config_ITL000_ITL001_ITL012_ITL013_Callback_Shared_Interrupt(void);
+void R_Config_ITL000_ITL001_ITL012_ITL013_Create_UserInit(void);
+/* Start user code for function. Do not edit comment generated here */
 /* End user code. Do not edit comment generated here */
-
-/***********************************************************************************************************************
-Pragma directive
-***********************************************************************************************************************/
-/* Start user code for pragma. Do not edit comment generated here */
-/* End user code. Do not edit comment generated here */
-
-/***********************************************************************************************************************
-Global variables and functions
-***********************************************************************************************************************/
-/* Start user code for global. Do not edit comment generated here */
-/* End user code. Do not edit comment generated here */
-
-/***********************************************************************************************************************
-* Function Name: R_TAU0_Create
-* Description  : This function enables TAU0 input clock supply and initializes TAU0 module.
-* Arguments    : None
-* Return Value : None
-***********************************************************************************************************************/
-void R_TAU0_Create(void)
-{
-    TAU0EN = 1U;    /* start TAU0 clock */
-    /* Set TAU0 settings */
-    R_Config_TAU0_0_Create();
-}
-
-/***********************************************************************************************************************
-* Function Name: R_TAU0_Set_PowerOn
-* Description  : This function starts the clock supply for TAU0.
-* Arguments    : None
-* Return Value : None
-***********************************************************************************************************************/
-void R_TAU0_Set_PowerOn(void)
-{
-    TAU0EN = 1U;    /* start TAU0 clock */
-}
-
-/***********************************************************************************************************************
-* Function Name: R_TAU0_Set_PowerOff
-* Description  : This function stops the clock supply for TAU0.
-* Arguments    : None
-* Return Value : None
-***********************************************************************************************************************/
-void R_TAU0_Set_PowerOff(void)
-{
-    TAU0EN = 0U;    /* stop TAU0 clock */
-}
-
-/***********************************************************************************************************************
-* Function Name: R_TAU0_Set_Reset
-* Description  : This function sets TAU0 module in reset state.
-* Arguments    : None
-* Return Value : None
-***********************************************************************************************************************/
-void R_TAU0_Set_Reset(void)
-{
-    TAU0RES = 1U;    /* reset TAU0 */
-}
-
-/***********************************************************************************************************************
-* Function Name: R_TAU0_Release_Reset
-* Description  : This function releases TAU0 module from reset state.
-* Arguments    : None
-* Return Value : None
-***********************************************************************************************************************/
-void R_TAU0_Release_Reset(void)
-{
-    TAU0RES = 0U;    /* release TAU0 */
-}
-
-/* Start user code for adding. Do not edit comment generated here */
-/* End user code. Do not edit comment generated here */
+#endif

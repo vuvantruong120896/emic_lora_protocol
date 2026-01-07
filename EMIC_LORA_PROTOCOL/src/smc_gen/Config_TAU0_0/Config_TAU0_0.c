@@ -62,13 +62,13 @@ void R_Config_TAU0_0_Create(void)
     /* Channel 0 is used as master channel for PWM output function */
     TMR00 = _0000_TAU_CLOCK_SELECT_CKM0 | _0000_TAU_CLOCK_MODE_CKS | _0000_TAU_TRIGGER_SOFTWARE | 
             _0001_TAU_MODE_PWM_MASTER;
-    TDR00 = _009F_TAU_TDR00_VALUE;
+    TDR00 = _0F9F_TAU_TDR00_VALUE;
     TO0 &= (uint16_t)~_0001_TAU_CH0_OUTPUT_VALUE_1;
     TOE0 &= (uint16_t)~_0001_TAU_CH0_OUTPUT_ENABLE;
     /* Channel 3 is used as slave channel for PWM output function */
     TMR03 = _0000_TAU_CLOCK_SELECT_CKM0 | _0000_TAU_CLOCK_MODE_CKS | _0000_TAU_COMBINATION_SLAVE | 
             _0400_TAU_TRIGGER_MASTER_INT | _0009_TAU_MODE_PWM_SLAVE;
-    TDR03 = _0078_TAU_TDR03_VALUE;
+    TDR03 = _0BB8_TAU_TDR03_VALUE;
     TOM0 |= _0008_TAU_CH3_SLAVE_OUTPUT;
     TOL0 &= (uint16_t)~_0008_TAU_CH3_OUTPUT_LEVEL_L;
     TO0 &= (uint16_t)~_0008_TAU_CH3_OUTPUT_VALUE_1;

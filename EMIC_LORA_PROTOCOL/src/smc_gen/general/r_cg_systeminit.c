@@ -34,6 +34,7 @@ Includes
 #include "r_cg_sau_common.h"
 #include "r_cg_uarta_common.h"
 #include "r_cg_tau_common.h"
+#include "r_cg_itl_common.h"
 /* Start user code for include. Do not edit comment generated here */
 /* End user code. Do not edit comment generated here */
 
@@ -66,6 +67,7 @@ void R_Systeminit(void)
     R_SAU1_Create();
     R_TAU0_Create();
     R_UARTA_Create();
+    R_ITL_Create();
     R_Config_INTC_Create();
     R_Config_RTC_Create();
 }

@@ -8,14 +8,29 @@ typedef enum
     BUTTON_ID_SMOKE_TEST = 0
 } button_id_t;
 
+typedef enum
+{
+    BUTTON_EVENT_NONE = 0,
+    BUTTON_EVENT_CLICK_1 = 1,        /* single click */
+    BUTTON_EVENT_CLICK_2 = 2,        /* double click */
+    BUTTON_EVENT_HOLD_1S = 3,        /* hold >= 1s */
+    BUTTON_EVENT_HOLD_3S = 4,        /* hold >= 3s */
+    BUTTON_EVENT_HOLD_5S = 5         /* hold >= 5s */
+} button_event_t;
+
 void button_init(void);
 
-/* Call periodically (best-effort). No extra ISR/timer required. */
-void button_poll(void);
+/* Runs the button state machine (call from main loop). */
+void button_run(void);
 
 uint8_t button_is_pressed(button_id_t id);
 
-/* Returns 1 exactly once per press (debounced). */
-uint8_t button_poll_pressed_edge(button_id_t id);
+/* Poll one queued button event (non-blocking). */
+button_event_t button_poll_event(void);
+
+/* Returns 1 if the driver is in the middle of a gesture (pressed / waiting 2nd click).
+ * When busy, the system should avoid STOP() (use HALT()) so the 1ms tick can run.
+ */
+uint8_t button_is_busy(void);
 
 #endif /* BUTTON_H */

@@ -26,8 +26,8 @@ flowchart TD
   end
 
   subgraph PROTO[Layer 4: protocol]
-    P1["lora_frame"]
-    P2["lora_crypto"]
+    P1["emic_lora_protocol"]
+    P2["emic_lora_crypto + emic_lora_crc16_modbus"]
   end
 
   subgraph RADIO[Layer 3a: radio]
@@ -47,14 +47,14 @@ flowchart TD
     H2["hal_spi"]
     H3["hal_rtc"]
     H4["hal_timer - TAU0_0 PWM"]
-    H5["hal_systick - TAU0_1 1ms"]
+    H5["hal_systick - ITL (FSXP) ~1ms"]
   end
 
   subgraph SMC[Layer 1: smc_gen]
     G1["Config_RTC ISR"]
     G2["Config_INTC ISR DIO1"]
     G3["Config_TAU0_0"]
-    G4["Config_TAU0_1"]
+    G4["Config_ITL000_ITL001_ITL012_ITL013"]
   end
 
   A1 --> S1
@@ -310,4 +310,5 @@ flowchart TD
   RS --> S["STOP()"]
 ```
 
-- SysTick 1ms (TAU0_1) **không** là timebase chính; chỉ nên bật "khi cần". Hiện tại được dùng cho delay init SX1262 và đã được dừng lại sau init.
+- SysTick ~1ms (ITL/FSXP) **không** là timebase chính; timebase chính vẫn là RTC tick 0.5s.
+- Trong phiên bản hiện tại, systick được bật theo nhu cầu (chủ yếu khi xử lý gesture/button và một số delay ngắn), và sẽ được tắt khi idle để tiết kiệm năng lượng.

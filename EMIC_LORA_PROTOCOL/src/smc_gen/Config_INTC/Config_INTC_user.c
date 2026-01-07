@@ -87,6 +87,10 @@ static void __near r_Config_INTC_intp0_interrupt(void)
 static void __near r_Config_INTC_intp8_interrupt(void)
 {
     /* Start user code for r_Config_INTC_intp8_interrupt. Do not edit comment generated here */
+    /* Wake-only interrupt for button press (P7.4 / INTP8).
+     * Clear flag to allow next edge.
+     */
+    PIF8 = 0U;
     /* End user code. Do not edit comment generated here */
 }
 

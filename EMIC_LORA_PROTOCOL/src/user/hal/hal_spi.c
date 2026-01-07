@@ -75,6 +75,7 @@ int hal_spi_deinit(void)
 uint8_t hal_spi_transfer(uint8_t data)
 {
     uint8_t rx_data;
+    uint32_t guard;
     
     /* Clear interrupt flag */
     CSIIF20 = 0U;
@@ -84,7 +85,18 @@ uint8_t hal_spi_transfer(uint8_t data)
     
     /* Wait for transfer to complete (Interrupt flag set) */
     /* Since interrupts are masked, the flag will still be set but no ISR will run */
-    while (CSIIF20 == 0U);
+    guard = 0UL;
+    while (CSIIF20 == 0U)
+    {
+        /* If CSI20 is not running (e.g., after STOP), CSIIF20 may never set.
+         * Guard against a permanent hang so the system can report a fault.
+         */
+        if (++guard > 200000UL)
+        {
+            log_error("%s", "SPI timeout waiting CSIIF20");
+            break;
+        }
+    }
     
     /* Read received data */
     rx_data = SIO20;

@@ -18,17 +18,17 @@
 ***********************************************************************************************************************/
 
 /***********************************************************************************************************************
-* File Name        : Config_TAU0_1.c
+* File Name        : Config_ITL000_ITL001_ITL012_ITL013_user.c
 * Component Version: 1.5.0
 * Device(s)        : R7F100GGGxFB
-* Description      : This file implements device driver for Config_TAU0_1.
+* Description      : This file implements device driver for Config_ITL000_ITL001_ITL012_ITL013.
 ***********************************************************************************************************************/
 /***********************************************************************************************************************
 Includes
 ***********************************************************************************************************************/
 #include "r_cg_macrodriver.h"
 #include "r_cg_userdefine.h"
-#include "Config_TAU0_1.h"
+#include "Config_ITL000_ITL001_ITL012_ITL013.h"
 /* Start user code for include. Do not edit comment generated here */
 /* End user code. Do not edit comment generated here */
 
@@ -45,60 +45,32 @@ Global variables and functions
 /* End user code. Do not edit comment generated here */
 
 /***********************************************************************************************************************
-* Function Name: R_Config_TAU0_1_Create
-* Description  : This function initializes the TAU0 channel 1 module.
+* Function Name: R_Config_ITL000_ITL001_ITL012_ITL013_Create_UserInit
+* Description  : This function adds user code after initializing the ITL000_ITL001_ITL012_ITL013 channel.
 * Arguments    : None
 * Return Value : None
 ***********************************************************************************************************************/
-void R_Config_TAU0_1_Create(void)
+void R_Config_ITL000_ITL001_ITL012_ITL013_Create_UserInit(void)
 {
-    TPS0 &= _FFF0_TAU_CKM0_CLEAR;
-    TPS0 |= _0000_TAU_CKM0_FCLK_0;
-    /* Stop channel 1 */
-    TT0 |= _0002_TAU_CH1_STOP_TRG_ON;
-    /* Mask channel 1 interrupt */
-    TMMK01 = 1U;    /* disable INTTM01 interrupt */
-    TMIF01 = 0U;    /* clear INTTM01 interrupt flag */
-    /* Set INTTM01 low priority */
-    TMPR101 = 1U;
-    TMPR001 = 1U;
-    /* TAU01 used as interval timer */
-    TMR01 = _0000_TAU_CLOCK_SELECT_CKM0 | _0000_TAU_CLOCK_MODE_CKS | _0000_TAU_16BITS_MODE | 
-            _0000_TAU_TRIGGER_SOFTWARE | _0000_TAU_MODE_INTERVAL_TIMER | _0000_TAU_START_INT_UNUSED;
-    TDR01 = _1F3F_TAU_TDR01_VALUE;
-    TOM0 &= (uint16_t)~_0002_TAU_CH1_SLAVE_OUTPUT;
-    TOL0 &= (uint16_t)~_0002_TAU_CH1_OUTPUT_LEVEL_L;
-    TO0 &= (uint16_t)~_0002_TAU_CH1_OUTPUT_VALUE_1;
-    TOE0 &= (uint16_t)~_0002_TAU_CH1_OUTPUT_ENABLE;
-    
-    R_Config_TAU0_1_Create_UserInit();
+    /* Start user code for user init. Do not edit comment generated here */
+    /* End user code. Do not edit comment generated here */
 }
 
 /***********************************************************************************************************************
-* Function Name: R_Config_TAU0_1_Start
-* Description  : This function starts the TAU0 channel 1 counter.
+* Function Name: R_Config_ITL000_ITL001_ITL012_ITL013_Callback_Shared_Interrupt
+* Description  : This function handles the ITL000_ITL001_ITL012_ITL013 shared interrupt.
 * Arguments    : None
 * Return Value : None
 ***********************************************************************************************************************/
-void R_Config_TAU0_1_Start(void)
+void R_Config_ITL000_ITL001_ITL012_ITL013_Callback_Shared_Interrupt(void)
 {
-    TMIF01 = 0U;    /* clear INTTM01 interrupt flag */
-    TMMK01 = 0U;    /* enable INTTM01 interrupt */
-    TS0 |= _0002_TAU_CH1_START_TRG_ON;
-}
+    /* Start user code for R_Config_ITL000_ITL001_ITL012_ITL013_Callback_Shared_Interrupt. Do not edit comment generated here */
 
-/***********************************************************************************************************************
-* Function Name: R_Config_TAU0_1_Stop
-* Description  : This function stops the TAU0 channel 1 counter.
-* Arguments    : None
-* Return Value : None
-***********************************************************************************************************************/
-void R_Config_TAU0_1_Stop(void)
-{
-    TT0 |= _0002_TAU_CH1_STOP_TRG_ON;
-    /* Mask channel 1 interrupt */
-    TMMK01 = 1U;    /* disable INTTM01 interrupt */
-    TMIF01 = 0U;    /* clear INTTM01 interrupt flag */
+    /* Drive system tick from ITL interrupt */
+    extern void hal_systick_on_itl_interrupt(void);
+    hal_systick_on_itl_interrupt();
+
+    /* End user code. Do not edit comment generated here */
 }
 
 /* Start user code for adding. Do not edit comment generated here */

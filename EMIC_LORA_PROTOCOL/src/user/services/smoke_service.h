@@ -3,11 +3,20 @@
 
 #include <stdint.h>
 
+typedef enum
+{
+    SMOKE_EVENT_NONE = 0,
+    SMOKE_EVENT_FIRE_DETECTED,   /* 0→1: fire condition detected */
+    SMOKE_EVENT_FIRE_CLEARED     /* 1→0: fire condition cleared */
+} smoke_event_t;
+
 void smoke_service_init(void);
 
-/* MVP: returns 1 on rising-edge of alarm condition (trigger).
- * Replace with real smoke sensor sampling + filtering.
+/* Poll for smoke sensor state changes (both rising and falling edge).
+ * Returns SMOKE_EVENT_FIRE_DETECTED on 0→1 transition.
+ * Returns SMOKE_EVENT_FIRE_CLEARED on 1→0 transition.
+ * Returns SMOKE_EVENT_NONE if no change.
  */
-uint8_t smoke_service_poll_alarm_trigger(void);
+smoke_event_t smoke_service_poll_event(void);
 
 #endif

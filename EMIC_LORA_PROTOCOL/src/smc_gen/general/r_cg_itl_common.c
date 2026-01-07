@@ -18,7 +18,7 @@
 ***********************************************************************************************************************/
 
 /***********************************************************************************************************************
-* File Name        : r_cg_tau_common.c
+* File Name        : r_cg_itl_common.c
 * Version          : 1.0.40
 * Device(s)        : R7F100GGGxFB
 * Description      : None
@@ -28,8 +28,8 @@ Includes
 ***********************************************************************************************************************/
 #include "r_cg_macrodriver.h"
 #include "r_cg_userdefine.h"
-#include "Config_TAU0_0.h"
-#include "r_cg_tau_common.h"
+#include "Config_ITL000_ITL001_ITL012_ITL013.h"
+#include "r_cg_itl_common.h"
 /* Start user code for include. Do not edit comment generated here */
 /* End user code. Do not edit comment generated here */
 
@@ -46,60 +46,86 @@ Global variables and functions
 /* End user code. Do not edit comment generated here */
 
 /***********************************************************************************************************************
-* Function Name: R_TAU0_Create
-* Description  : This function enables TAU0 input clock supply and initializes TAU0 module.
+* Function Name: R_ITL_Create
+* Description  : This function initializes the 32-bits IT.
 * Arguments    : None
 * Return Value : None
 ***********************************************************************************************************************/
-void R_TAU0_Create(void)
+void R_ITL_Create(void)
 {
-    TAU0EN = 1U;    /* start TAU0 clock */
-    /* Set TAU0 settings */
-    R_Config_TAU0_0_Create();
+    TML32EN = 1U;    /* start 32-bits IT clock */
+    /* Set 32-bits IT settings */
+    R_Config_ITL000_ITL001_ITL012_ITL013_Create();
 }
 
 /***********************************************************************************************************************
-* Function Name: R_TAU0_Set_PowerOn
-* Description  : This function starts the clock supply for TAU0.
+* Function Name: R_ITL_Start_Interrupt
+* Description  : This function starts INTITL interrupt.
 * Arguments    : None
 * Return Value : None
 ***********************************************************************************************************************/
-void R_TAU0_Set_PowerOn(void)
+void R_ITL_Start_Interrupt(void)
 {
-    TAU0EN = 1U;    /* start TAU0 clock */
+    /* Clear INTITL interrupt request and enable operation */
+    ITLIF = 0U;    /* clear INTITL interrupt flag */
+    ITLMK = 0U;    /* enable INTITL interrupt */
 }
 
 /***********************************************************************************************************************
-* Function Name: R_TAU0_Set_PowerOff
-* Description  : This function stops the clock supply for TAU0.
+* Function Name: R_ITL_Stop_Interrupt
+* Description  : This function stops INTITL interrupt.
 * Arguments    : None
 * Return Value : None
 ***********************************************************************************************************************/
-void R_TAU0_Set_PowerOff(void)
+void R_ITL_Stop_Interrupt(void)
 {
-    TAU0EN = 0U;    /* stop TAU0 clock */
+    /* Disable INTITL interrupt operation and clear request */
+    ITLMK = 1U;    /* disable INTITL interrupt */
+    ITLIF = 0U;    /* clear INTITL interrupt flag */
 }
 
 /***********************************************************************************************************************
-* Function Name: R_TAU0_Set_Reset
-* Description  : This function sets TAU0 module in reset state.
+* Function Name: R_ITL_Set_PowerOn
+* Description  : This function starts the clock supply for 32-bits IT.
 * Arguments    : None
 * Return Value : None
 ***********************************************************************************************************************/
-void R_TAU0_Set_Reset(void)
+void R_ITL_Set_PowerOn(void)
 {
-    TAU0RES = 1U;    /* reset TAU0 */
+    TML32EN = 1U;    /* start 32-bits IT clock */
 }
 
 /***********************************************************************************************************************
-* Function Name: R_TAU0_Release_Reset
-* Description  : This function releases TAU0 module from reset state.
+* Function Name: R_ITL_Set_PowerOff
+* Description  : This function stops the clock supply for 32-bits IT.
 * Arguments    : None
 * Return Value : None
 ***********************************************************************************************************************/
-void R_TAU0_Release_Reset(void)
+void R_ITL_Set_PowerOff(void)
 {
-    TAU0RES = 0U;    /* release TAU0 */
+    TML32EN = 0U;    /* stop 32-bits IT clock */
+}
+
+/***********************************************************************************************************************
+* Function Name: R_ITL_Set_Reset
+* Description  : This function sets 32-bits IT module in reset state.
+* Arguments    : None
+* Return Value : None
+***********************************************************************************************************************/
+void R_ITL_Set_Reset(void)
+{
+    TML32RES = 1U;    /* reset 32-bit IT */
+}
+
+/***********************************************************************************************************************
+* Function Name: R_ITL_Release_Reset
+* Description  : This function releases 32-bits IT module from reset state.
+* Arguments    : None
+* Return Value : None
+***********************************************************************************************************************/
+void R_ITL_Release_Reset(void)
+{
+    TML32RES = 0U;    /* release 32-bits IT */
 }
 
 /* Start user code for adding. Do not edit comment generated here */

@@ -6,7 +6,7 @@
 void power_service_init(void);
 
 /* Called from main loop when there is no immediate work.
- * MVP: enters HALT().
+ * Enters STOP() when possible; may use HALT() during active alarm.
  */
 void power_service_idle(void);
 

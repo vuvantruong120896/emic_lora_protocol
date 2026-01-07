@@ -166,7 +166,8 @@ void hal_gpio_buzzer_boot_set(gpio_state_t state);
 /**
  * hal_gpio_button_get()
  * Read Button input (P7.4)
- * Returns: GPIO_HIGH if pressed, GPIO_LOW if released
+ * Note: P7.4 has on-chip pull-up enabled (see Config_PORT_user.c), so:
+ * Returns: GPIO_LOW if pressed, GPIO_HIGH if released
  */
 gpio_state_t hal_gpio_button_get(void);
 

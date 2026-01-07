@@ -6,7 +6,7 @@ This repo implements the **Node firmware** (RL78 + SX1262). The earlier "product
 - `src/user/app/`: `app_main.c` + `app_config.*`
 - `src/user/services/`: alarm + smoke + power + heartbeat wrappers
 - `src/user/link/`: `lora_link.c` contains CAD paging + scheduling + TX queue
-- `src/user/protocol/`: `lora_frame.*` + `lora_crypto.*` (AES-CTR + AES-CMAC MIC)
+- `src/user/protocol/`: `emic_lora_protocol.*` + `emic_lora_crypto.*` + `emic_lora_crc16_modbus.*` (official GW↔Node framing: AES-ECB + CRC16/MODBUS)
 - `src/user/radio/`: `radio_if.*` + `sx1262.*` (driver + IRQ plumbing)
 - `src/user/drv/`: `nv_store.*` and thin device drivers (`buzzer/`, `smoke_sensor/`, `battery/`)
 - `src/user/hal/` + `src/smc_gen/`: platform + generated code
@@ -14,7 +14,7 @@ This repo implements the **Node firmware** (RL78 + SX1262). The earlier "product
 ## Why the proposal looked "bigger"
 The proposal also suggested future splits like:
 - `cad_paging.c/h` separated from `lora_link.c`
-- `frame_codec.c/h` separated from `lora_frame.c/h`
+- `frame_codec.c/h` separated from `emic_lora_protocol.c/h`
 - richer drivers: real ADC battery measurement, smoke sensor filtering
 - provisioning tooling for keys and persistent counter (NVM)
 

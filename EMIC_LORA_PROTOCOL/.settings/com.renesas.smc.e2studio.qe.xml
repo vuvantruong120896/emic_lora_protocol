@@ -44,14 +44,14 @@
         <Setting id="r_bsp" value=""/>
         <Setting id="Config_CSI20" value="CG"/>
         <Setting id="Config_INTC" value="CG"/>
-        <Setting id="Config_TAU0_1" value="CG"/>
         <Setting id="Config_UARTA1" value="CG"/>
         <Setting id="Config_RTC" value="CG"/>
         <Setting id="Config_PORT" value="CG"/>
+        <Setting id="Config_ITL000_ITL001_ITL012_ITL013" value="CG"/>
         <Segment component="com.renesas.smc.tools.swcomponent.codegenerator.rl78.pwm" id="Config_TAU0_0" source="com.renesas.smc.tools.swcomponent.codegenerator.source">
             <Setting id="Operation" value="CK0"/>
-            <Setting id="IntervalValue" value="20"/>
-            <Setting id="IntervalUnit" value="us"/>
+            <Setting id="IntervalValue" value="0.5"/>
+            <Setting id="IntervalUnit" value="ms"/>
             <Setting id="MasterIntEnable" value="Disable"/>
             <Setting id="slavechannel3" value="Enable"/>
             <Setting id="MasterIntPriority" value="Level3"/>
@@ -196,16 +196,6 @@
                 <Setting id="enableINTP" value="enable"/>
                 <Setting id="intpPriority" value="Level3"/>
             </Segment>
-        </Segment>
-        <Segment component="com.renesas.smc.tools.swcomponent.codegenerator.rl78.intervaltimer" id="Config_TAU0_1" source="com.renesas.smc.tools.swcomponent.codegenerator.source">
-            <Setting id="InterruptEnable" value="enable"/>
-            <Setting id="IntervalUnit16bits" value="ms"/>
-            <Setting id="Priority" value="Level3"/>
-            <Setting id="FilterMode" value="16bitCountMode"/>
-            <Setting id="OperationClock" value="CK0"/>
-            <Setting id="StartInt" value="disable"/>
-            <Setting id="IntervalValue16bits" value="1"/>
-            <Setting id="ClockSource" value="FCLK1"/>
         </Segment>
         <Segment component="com.renesas.smc.tools.swcomponent.codegenerator.rl78.uart" id="Config_UARTA1" source="com.renesas.smc.tools.swcomponent.codegenerator.source">
             <Setting id="paritySetting" value="none"/>
@@ -550,6 +540,15 @@
             <Segment id="PORT2_Check">
                 <Setting id="PortnEnable" value="Enable"/>
             </Segment>
+        </Segment>
+        <Segment component="com.renesas.smc.tools.swcomponent.codegenerator.rl78.intervaltimer" id="Config_ITL000_ITL001_ITL012_ITL013" source="com.renesas.smc.tools.swcomponent.codegenerator.source">
+            <Setting id="IntervalUnit" value="ms"/>
+            <Setting id="PriorityITL" value="Level3"/>
+            <Setting id="FilterMode" value="32bitCountMode"/>
+            <Setting id="ClockSource" value="fITL0"/>
+            <Setting id="IntervalValue" value="1"/>
+            <Setting id="OperationClock0" value="fSXP"/>
+            <Setting id="ITLInterruptEnable" value="enable"/>
         </Segment>
     </Segment>
 </QE>

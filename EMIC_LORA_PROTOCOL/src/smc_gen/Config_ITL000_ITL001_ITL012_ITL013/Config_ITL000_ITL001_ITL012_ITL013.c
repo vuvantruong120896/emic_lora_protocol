@@ -18,18 +18,17 @@
 ***********************************************************************************************************************/
 
 /***********************************************************************************************************************
-* File Name        : r_cg_tau_common.c
-* Version          : 1.0.40
+* File Name        : Config_ITL000_ITL001_ITL012_ITL013.c
+* Component Version: 1.5.0
 * Device(s)        : R7F100GGGxFB
-* Description      : None
+* Description      : This file implements device driver for Config_ITL000_ITL001_ITL012_ITL013.
 ***********************************************************************************************************************/
 /***********************************************************************************************************************
 Includes
 ***********************************************************************************************************************/
 #include "r_cg_macrodriver.h"
 #include "r_cg_userdefine.h"
-#include "Config_TAU0_0.h"
-#include "r_cg_tau_common.h"
+#include "Config_ITL000_ITL001_ITL012_ITL013.h"
 /* Start user code for include. Do not edit comment generated here */
 /* End user code. Do not edit comment generated here */
 
@@ -46,60 +45,73 @@ Global variables and functions
 /* End user code. Do not edit comment generated here */
 
 /***********************************************************************************************************************
-* Function Name: R_TAU0_Create
-* Description  : This function enables TAU0 input clock supply and initializes TAU0 module.
+* Function Name: R_Config_ITL000_ITL001_ITL012_ITL013_Create
+* Description  : This function initializes the ITL000_ITL001_ITL012_ITL013 module.
 * Arguments    : None
 * Return Value : None
 ***********************************************************************************************************************/
-void R_TAU0_Create(void)
+void R_Config_ITL000_ITL001_ITL012_ITL013_Create(void)
 {
-    TAU0EN = 1U;    /* start TAU0 clock */
-    /* Set TAU0 settings */
-    R_Config_TAU0_0_Create();
+    /* Stop 32-bit interval timer */
+    ITLCTL0 = 0x00U;
+    /* Mask INTITL interrupt */
+    ITLMKF0 |= _01_ITL_CHANNEL0_COUNT_MATCH_MASK;
+    ITLS0 &= (uint8_t)~_01_ITL_CHANNEL0_COUNT_MATCH_DETECTE;
+    ITLMK = 1U;    /* disable INTITL interrupt */
+    ITLIF = 0U;    /* clear INTITL interrupt flag */
+    /* Set INTITL low priority */
+    ITLPR1 = 1U;
+    ITLPR0 = 1U;
+    /* 32-bit interval timer used as 32-bit timer */
+    ITLCTL0 |= _80_ITL_MODE_32BIT;
+    ITLCSEL0 &= _F8_ITL_CLOCK_FITL0_CLEAR;
+    ITLCSEL0 |= _04_ITL_CLOCK_FITL0_FSXP;
+    ITLFDIV00 &= _F8_ITL_ITL000_FITL0_CLEAR;
+    ITLFDIV00 |= _00_ITL_ITL000_FITL0_1;
+    ITLCMP00 = _0020_ITL_ITLCMP00_VALUE;
+    ITLCMP01 = _0000_ITL_ITLCMP01_VALUE;
+    
+    R_Config_ITL000_ITL001_ITL012_ITL013_Create_UserInit();
 }
 
 /***********************************************************************************************************************
-* Function Name: R_TAU0_Set_PowerOn
-* Description  : This function starts the clock supply for TAU0.
+* Function Name: R_Config_ITL000_ITL001_ITL012_ITL013_Start
+* Description  : This function starts the ITL000_ITL001_ITL012_ITL013 channel.
 * Arguments    : None
 * Return Value : None
 ***********************************************************************************************************************/
-void R_TAU0_Set_PowerOn(void)
+void R_Config_ITL000_ITL001_ITL012_ITL013_Start(void)
 {
-    TAU0EN = 1U;    /* start TAU0 clock */
+    ITLS0 &= (uint8_t)~_01_ITL_CHANNEL0_COUNT_MATCH_DETECTE;
+    ITLMKF0 &= (uint8_t)~_01_ITL_CHANNEL0_COUNT_MATCH_MASK;
+    ITLEN00 = 1U;
 }
 
 /***********************************************************************************************************************
-* Function Name: R_TAU0_Set_PowerOff
-* Description  : This function stops the clock supply for TAU0.
+* Function Name: R_Config_ITL000_ITL001_ITL012_ITL013_Stop
+* Description  : This function stops the ITL000_ITL001_ITL012_ITL013 channel.
 * Arguments    : None
 * Return Value : None
 ***********************************************************************************************************************/
-void R_TAU0_Set_PowerOff(void)
+void R_Config_ITL000_ITL001_ITL012_ITL013_Stop(void)
 {
-    TAU0EN = 0U;    /* stop TAU0 clock */
+    ITLMKF0 |= _01_ITL_CHANNEL0_COUNT_MATCH_MASK;
+    ITLS0 &= (uint8_t)~_01_ITL_CHANNEL0_COUNT_MATCH_DETECTE;
+    ITLEN00 = 0U;
 }
 
 /***********************************************************************************************************************
-* Function Name: R_TAU0_Set_Reset
-* Description  : This function sets TAU0 module in reset state.
+* Function Name: R_Config_ITL000_ITL001_ITL012_ITL013_Set_OperationMode
+* Description  : This function is used to stop counter and clear interrupt flag before changing operation mode.
 * Arguments    : None
 * Return Value : None
 ***********************************************************************************************************************/
-void R_TAU0_Set_Reset(void)
+void R_Config_ITL000_ITL001_ITL012_ITL013_Set_OperationMode(void)
 {
-    TAU0RES = 1U;    /* reset TAU0 */
-}
-
-/***********************************************************************************************************************
-* Function Name: R_TAU0_Release_Reset
-* Description  : This function releases TAU0 module from reset state.
-* Arguments    : None
-* Return Value : None
-***********************************************************************************************************************/
-void R_TAU0_Release_Reset(void)
-{
-    TAU0RES = 0U;    /* release TAU0 */
+    ITLMKF0 |= _01_ITL_CHANNEL0_COUNT_MATCH_MASK;
+    ITLS0 &= (uint8_t)~_01_ITL_CHANNEL0_COUNT_MATCH_DETECTE;
+    /* Stop 32-bit interval timer */
+    ITLCTL0 &= 0xF0U;
 }
 
 /* Start user code for adding. Do not edit comment generated here */

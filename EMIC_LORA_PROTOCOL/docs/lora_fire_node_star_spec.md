@@ -2,6 +2,8 @@
 
 ## 0. Scope
 
+Tài liệu giao thức frame/message **chính thức**: xem `docs/emic_lora_protocol_frame_spec.md`.
+
 Tài liệu này chốt kiến trúc và luồng/protocol cho hệ **Node báo cháy không dây** dùng **LoRa (SX1262)** theo mô hình **Star, private (không LoRaWAN)**.
 
 Mục tiêu chính:
@@ -29,6 +31,7 @@ Ngoài phạm vi:
   - RF: SX1262
   - Cảm biến: smoke/heat (tùy thiết kế)
   - Actuator: còi/đèn
+  - User Button (MVP): test/provisioning/reset
   - RTC ngoài: đánh thức định kỳ (heartbeat / CAD scan)
 - **Gateway/Base (mains-powered)**
 
@@ -68,7 +71,7 @@ Ngoài phạm vi:
 
 - **Downlink preamble length: 8 symbols (chốt)**
 - **CAD symbols: 4 (chốt)**
-- **Node CAD scan period (Tscan): 2.0 s (chốt)**
+- **Node CAD scan period (Tscan): 5.0 s (chốt)**
 
 Gateway ALARM broadcast:
 
@@ -81,7 +84,26 @@ Node after CAD hit:
 
 - RX listen time after CAD hit (Trx): **80–150 ms** (khuyến nghị)
 
-### 2.4 Heartbeat parameters
+### 2.4 Gateway beacon (downlink) — time sync + gateway-loss detection
+
+Mục tiêu:
+
+- Node có thể **sync RTC** (thời gian thực) theo gateway.
+- Node có thể kết luận **mất kết nối gateway** trong tối đa **≤ 5 phút**.
+
+Nguyên lý:
+
+- Gateway phát frame **GW_BEACON (DL, broadcast)** định kỳ.
+- Node vẫn dùng **CAD paging** như ALARM: CAD hit → mở RX ngắn để bắt beacon.
+
+Khuyến nghị vận hành:
+
+- Beacon period (gateway): **60–90 s**.
+- Mỗi lần phát beacon nên là **một burst** đủ dài để chắc chắn đi qua ít nhất 1 lần CAD scan của node.
+  - Gợi ý: burst duration **≥ Tscan + 1s**.
+- Node báo gateway lost nếu **không nhận beacon > 300 s**.
+
+### 2.5 Heartbeat parameters
 
 - Heartbeat nominal period: **240 s**
 - Jitter: **±3 s** (khuyến nghị) để tránh đồng pha 30 node
@@ -95,6 +117,12 @@ Node after CAD hit:
 
 - Unconfirmed (không ACK) để giảm airtime và tránh tắc nghẽn.
 - Gateway chỉ cần log lần cuối nghe thấy node.
+
+### 3.1.1 Uplink “ALARM_EVENT” (local alarm only)
+
+- Chỉ áp dụng khi **local alarm** (smoke/button). Khi gateway broadcast xuống (ALARM_BCAST/GW_BEACON), node **không uplink lặp**.
+- Node có thể **gửi lặp lại** ALARM_EVENT với số lần giới hạn để tăng độ tin cậy trong môi trường nhiễu.
+- Khoảng cách giữa các lần gửi: base interval + jitter nhỏ để tránh nhiều node phát đồng pha.
 
 ### 3.2 Downlink ALARM (broadcast, no ACK)
 
@@ -113,16 +141,17 @@ Node after CAD hit:
 
 ## 4. Security (Private Network)
 
+Chi tiết CRC16 + mã hoá của **Protocol V1**: xem `docs/emic_lora_protocol_frame_spec.md`.
+
 Yêu cầu tối thiểu:
 
 - Chống nghe lén (confidentiality) cho uplink.
 - Chống giả mạo (integrity/auth) cho uplink + downlink ALARM.
 - Chống replay.
 
-Khuyến nghị triển khai (nhẹ cho MCU):
+Protocol V1 hiện tại sử dụng **AES-128-ECB** (không IV) và CRC16 để phát hiện lỗi truyền.
 
-- Cipher suite: **AES-128-CCM**
-- Per-device key cho uplink (DevKey), gateway lưu bảng DevID→DevKey.
+> Ghi chú: ECB/CRC16 **không cung cấp xác thực/chống giả mạo** theo nghĩa cryptographic. Nếu cần mức an toàn cao hơn (integrity/auth + replay protection mạnh), hãy lên kế hoạch V2 dùng MIC/AEAD (ví dụ CCM).
 
 Downlink ALARM broadcast có 2 lựa chọn:
 
@@ -142,6 +171,8 @@ Replay protection:
 
 ### 5.1 Common header (logical)
 
+Ghi chú: phần này mang tính khuyến nghị kiến trúc. Định dạng frame/message **chính thức V1** xem `docs/emic_lora_protocol_frame_spec.md`.
+
 Các field gợi ý (để dễ parse, ít RAM):
 
 - NetID (1–2 B)
@@ -152,7 +183,7 @@ Các field gợi ý (để dễ parse, ít RAM):
 - Len (1 B)
 
 Payload: tùy Type.
-Tag/MIC: 8–16 B (phụ thuộc CCM config).
+Tag/MIC: (dành cho V2 nếu triển khai AEAD/MIC).
 
 > Ghi chú: Trong SX1262, toàn bộ phần trên nằm trong LoRa payload. Header có thể plaintext nhưng phải được đưa vào AAD để bảo vệ toàn vẹn.
 
@@ -164,6 +195,8 @@ Tag/MIC: 8–16 B (phụ thuộc CCM config).
   - alarm type, level, local timestamp/uptime
 - ALARM_BCAST (DL, broadcast)
   - alarm id / event counter, alarm type, optional zone
+- GW_BEACON (DL, broadcast)
+  - time (BCD): sec, min, hour, day, week, month, year
 - ALARM_SEEN (UL)
   - alarm id (từ ALARM_BCAST), status “actuating”, optional RSSI/SNR last
 
@@ -185,7 +218,7 @@ Tag/MIC: 8–16 B (phụ thuộc CCM config).
 
 - RTC tick đánh thức theo 2 lịch song song:
   - Heartbeat schedule (~240s ± jitter)
-  - CAD schedule (2s)
+  - CAD schedule (5s)
 
 2) WAKE_CAD
 
@@ -198,6 +231,7 @@ Tag/MIC: 8–16 B (phụ thuộc CCM config).
 
 - Mở RX trong Trx=80–150ms
 - Nếu decode/verify ALARM_BCAST OK → ALARM_ACTUATE
+- Nếu decode/verify GW_BEACON OK → (sync time nếu cần) → về SLEEP
 - Nếu hết Trx mà không nhận được frame hợp lệ → về SLEEP
 
 4) WAKE_HEARTBEAT_TX
@@ -207,6 +241,15 @@ Tag/MIC: 8–16 B (phụ thuộc CCM config).
 - TX
 - (Optional) mở 1 RX window rất ngắn sau uplink nếu muốn nhận command (không bắt buộc trong MVP)
 - Return SLEEP
+
+### 6.4 Button gestures (MVP)
+
+Ánh xạ hành vi button (dùng cho test/provisioning cục bộ):
+
+- Hold **>= 1s**: SMOKE_TEST (node kêu + uplink ALARM_EVENT)
+- Double click: JOIN_NETWORK (hook / provisioning mode)
+- Hold **>= 5s**: FACTORY_RESET (reset trạng thái local, reset counters/NV theo MVP)
+- Single click: CONFIRM (hook / xác nhận thao tác)
 
 ### 6.3 Alarm flow
 

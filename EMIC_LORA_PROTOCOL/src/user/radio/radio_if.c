@@ -2,6 +2,8 @@
 
 #include "sx1262.h"
 
+#include "../utils/log_control.h"
+
 #include "../app/app_config.h"
 
 static volatile radio_event_t s_ev;
@@ -113,6 +115,7 @@ void radio_request_tx(const uint8_t *payload, uint8_t len)
     s_busy = 1U;
     sx1262_wakeup();
     sx1262_start_tx(payload, len);
+
 }
 
 radio_event_t radio_poll_event(void)

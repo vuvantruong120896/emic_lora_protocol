@@ -10,6 +10,9 @@ void alarm_service_set_remote_alarm(uint8_t on);
 
 /* Called every 0.5s from main context when RTC tick is observed. */
 void alarm_service_on_tick_halfsec(void);
+
+/* Call often from main loop to update alarm outputs (buzzer patterns). */
+void alarm_service_run(void);
 /* Returns 1 if any alarm output should be active (local or remote). */
 uint8_t alarm_service_is_active(void);
 

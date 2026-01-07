@@ -1,30 +1,29 @@
 /**
  * ============================================================================
  * File: hal_systick.c
- * Brief: System tick HAL implementation - 1ms periodic interrupt using TAU0_1
+ * Brief: System tick HAL implementation - periodic tick using 32-bit ITL
  * ============================================================================
  */
 
 #include "hal_systick.h"
-#include "../smc_gen/Config_TAU0_1/Config_TAU0_1.h"
-#include "../smc_gen/r_bsp/mcu/rl78_g23/register_access/ccrl/iodefine.h"
+#include "../smc_gen/general/r_cg_itl_common.h"
+#include "../smc_gen/Config_ITL000_ITL001_ITL012_ITL013/Config_ITL000_ITL001_ITL012_ITL013.h"
 #include <stddef.h>
-
-/* ===================================================================
- * Configuration
- * =================================================================== */
-
-/* System tick configuration for 1ms period at 8 MHz */
-#define HAL_SYSTICK_CLOCK_HZ        8000000UL   /* 8 MHz */
-#define HAL_SYSTICK_PERIOD_MS       1           /* 1ms tick */
-#define HAL_SYSTICK_COUNTS          (HAL_SYSTICK_CLOCK_HZ / 1000)  /* 8000 counts */
 
 /* ===================================================================
  * Global state
  * =================================================================== */
 
-static volatile uint32_t g_systick_count = 0;           /* 1ms tick counter */
+static volatile uint32_t g_systick_count = 0;           /* tick counter (nominal ms) */
 static volatile hal_systick_callback_t g_systick_callback = NULL; /* User callback */
+static uint8_t g_systick_inited = 0U;
+static uint8_t g_systick_running = 0U;
+static uint8_t g_systick_users = 0U;
+
+static uint8_t hal_systick_is_running_internal(void)
+{
+    return g_systick_running;
+}
 
 /* ===================================================================
  * Public API
@@ -35,15 +34,21 @@ static volatile hal_systick_callback_t g_systick_callback = NULL; /* User callba
  */
 int hal_systick_init(void)
 {
-    /* Initialize TAU0_1 via Smart Config */
-    R_Config_TAU0_1_Create();
-    
-    /* Reset tick counter */
+    if (g_systick_inited != 0U)
+    {
+        return 0;
+    }
+
+    /* Ensure ITL clock + configuration are set up (SMC also calls this in system init). */
+    R_ITL_Create();
+
+    /* Reset counters */
     g_systick_count = 0;
     g_systick_callback = NULL;
 
-    R_Config_TAU0_1_Start();
-    
+    g_systick_inited = 1U;
+    g_systick_running = 0U;
+    g_systick_users = 0U;
     return 0;
 }
 
@@ -52,7 +57,22 @@ int hal_systick_init(void)
  */
 void hal_systick_start(void)
 {
-    R_Config_TAU0_1_Start();
+    (void)hal_systick_init();
+
+    if (g_systick_users < 0xFFU)
+    {
+        if (g_systick_users == 0U)
+        {
+            /* New timing session: reset counter for relative-time users.
+             * Do NOT call hal_systick_clear_ms() from leaf modules; it is global.
+             */
+            g_systick_count = 0U;
+            R_Config_ITL000_ITL001_ITL012_ITL013_Start();
+            R_ITL_Start_Interrupt();
+            g_systick_running = 1U;
+        }
+        g_systick_users++;
+    }
 }
 
 /**
@@ -60,7 +80,19 @@ void hal_systick_start(void)
  */
 void hal_systick_stop(void)
 {
-    R_Config_TAU0_1_Stop();
+    if (g_systick_users > 0U)
+    {
+        g_systick_users--;
+        if (g_systick_users == 0U)
+        {
+            if (g_systick_running != 0U)
+            {
+                R_ITL_Stop_Interrupt();
+                R_Config_ITL000_ITL001_ITL012_ITL013_Stop();
+                g_systick_running = 0U;
+            }
+        }
+    }
 }
 
 /**
@@ -96,46 +128,18 @@ uint32_t hal_systick_get_ticks(void)
 }
 
 /* ===================================================================
- * Interrupt Handler (Called from Smart Config ISR)
+ * ISR Hook (Called from SMC user callback)
  * =================================================================== */
 
-/**
- * System tick interrupt callback
- * 
- * Invoked by Smart Config's INTTM01 ISR every 1ms.
- * Increments tick counter and calls user callback if registered.
- * 
- * This function is called from interrupt context - keep it short!
- */
-void r_Config_TAU0_1_callback_systick(void)
+void hal_systick_on_itl_interrupt(void)
 {
-    /* Increment 1ms counter */
+    /* Nominal: 1 tick ~= 1 ms (exact tick period is set by SMC compare value). */
     g_systick_count++;
-    
-    /* Call user callback if registered */
-    if (g_systick_callback != NULL) {
+
+    if (g_systick_callback != NULL)
+    {
         g_systick_callback();
     }
-}
-
-/* ===================================================================
- * Utility Functions
- * =================================================================== */
-
-/**
- * Get interrupt flag status
- */
-int hal_systick_int_is_pending(void)
-{
-    return (TMIF01 != 0) ? 1 : 0;
-}
-
-/**
- * Clear interrupt flag
- */
-void hal_systick_int_clear_flag(void)
-{
-    TMIF01 = 0U;
 }
 /* ===================================================================
  * Delay Functions
@@ -150,10 +154,29 @@ void hal_systick_int_clear_flag(void)
  */
 void hal_systick_delay_ms(uint32_t ms)
 {
-    uint32_t start_ms = hal_systick_get_ms();
+    uint8_t was_running;
+    uint32_t start_ms;
+
+    if (ms == 0U)
+    {
+        return;
+    }
+
+    was_running = hal_systick_is_running_internal();
+    if (was_running == 0U)
+    {
+        hal_systick_start();
+    }
+
+    start_ms = hal_systick_get_ms();
     
     while ((hal_systick_get_ms() - start_ms) < ms) {
         /* Wait for systick to advance */
+    }
+
+    if (was_running == 0U)
+    {
+        hal_systick_stop();
     }
 }
 
@@ -178,7 +201,7 @@ void hal_systick_delay_us(uint32_t us)
     uint32_t us_remainder;
     uint32_t i;
     
-    if (us == 0) {
+    if (us == 0U) {
         return;
     }
     

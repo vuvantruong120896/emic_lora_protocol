@@ -6,13 +6,10 @@
  * 
  * PWM Timing:
  *   Clock: 8 MHz (CKM0 = fCLK)
- *   Period: 159 counts (TDR00 = 0x009F)
- *   Frequency: 8 MHz / 159 = 50.314 kHz
- *   Period: 1 / 50.314 kHz = 19.84 µs
- *   PWM Output: CH3 (P3.1) at ~50 kHz
+ *   Period/Frequency: configured in SMC (Config_TAU0_0). Current project targets ~2 kHz.
  * 
  * NOTE: For all delay operations, use hal_systick (hal_systick_delay_ms/us)!
- *       TAU0_0 is PWM-only. TAU0_1 (hal_systick) provides time base.
+ *       TAU0_0 is PWM-only. hal_systick (ITL) provides time base.
  *=====================================================================*/
 
 #include "hal_timer.h"
@@ -84,13 +81,14 @@ void hal_timer_deinit(void)
  * Master CH0 has period = 159 ticks.
  * Slave CH3 on-time = TDR03.
  * Duty = TDR03 / TDR00 * 100%
- * Frequency: ~50 kHz (8MHz / 159)
+ * Frequency: configured in SMC (see live TDR00)
  * 
  * E.g., for 50% duty: TDR03 = 159 / 2 = 80
  */
 void hal_timer_set_pwm_duty(uint8_t duty_percent)
 {
     uint16_t on_ticks;
+    uint16_t period_ticks;
 
     if (!g_tau0_initialized)
     {
@@ -116,16 +114,29 @@ void hal_timer_set_pwm_duty(uint8_t duty_percent)
 
     if (!g_tau0_running)
     {
+        /* Be defensive: STOP/HALT transitions or other init code may have
+         * disturbed TAU0 registers. Re-apply the Smart Config settings right
+         * before starting PWM to guarantee the expected frequency/pin mux.
+         */
+        R_Config_TAU0_0_Create();
         R_Config_TAU0_0_Start();
         g_tau0_running = 1U;
     }
 
-    /* Calculate on-time ticks: on_ticks = (TDR00 * duty%) / 100 */
-    on_ticks = (TAU0_PERIOD_TICKS * duty_percent) / 100;
+    /* Calculate on-time ticks: on_ticks = (period * duty%) / 100
+     * Use the live TDR00 value instead of a hard-coded constant.
+     */
+    period_ticks = TDR00;
+    if (period_ticks == 0U)
+    {
+        period_ticks = TAU0_PERIOD_TICKS;
+    }
+
+    on_ticks = (uint16_t)(((uint32_t)period_ticks * (uint32_t)duty_percent) / 100UL);
     
     /* Cap at period value */
-    if (on_ticks > TAU0_PERIOD_TICKS) {
-        on_ticks = TAU0_PERIOD_TICKS;
+    if (on_ticks > period_ticks) {
+        on_ticks = period_ticks;
     }
 
     /* Write to TAU0 CH3 duty register */

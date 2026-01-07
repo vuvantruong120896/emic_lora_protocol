@@ -6,8 +6,10 @@
 #include "../radio/radio_if.h"
 #include "../app/app_config.h"
 
+#include "../utils/log_control.h"
+
 #include "../drv/nv_store.h"
-#include "../protocol/lora_frame.h"
+#include "../protocol/emic_lora_protocol.h"
 
 /* ===== Timing base =====
  * RTC constant-period ISR increments wakeup counter every 0.5s.
@@ -21,6 +23,7 @@
 #define HALFSEC_FROM_MS_ROUND(ms)  ((uint32_t)(((uint32_t)(ms) + (uint32_t)(MS_PER_HALFSEC / 2UL)) / (uint32_t)MS_PER_HALFSEC))
 #define CAD_PERIOD_HALFSEC         (HALFSEC_FROM_MS_ROUND(APP_CAD_SCAN_PERIOD_MS))
 #define HEARTBEAT_PERIOD_HALFSEC   ((uint32_t)APP_HEARTBEAT_PERIOD_S * (uint32_t)HALFSEC_PER_SEC)
+#define GW_LOST_TIMEOUT_HALFSEC    ((uint32_t)APP_GW_LOST_TIMEOUT_S * (uint32_t)HALFSEC_PER_SEC)
 
 typedef enum
 {
@@ -41,8 +44,12 @@ static link_state_t s_state;
 static uint32_t s_next_cad_halfsec;
 static uint32_t s_next_hb_halfsec;
 
+static uint32_t s_last_gw_beacon_halfsec;
+static uint8_t s_gw_seen_once;
+static uint8_t s_gw_lost_reported;
+static uint8_t s_rtc_synced;
+
 static volatile uint8_t s_req_heartbeat;
-static volatile uint8_t s_req_alarm_event;
 static uint8_t s_pending_alarm_seen;
 static uint16_t s_pending_alarm_id;
 static uint32_t s_alarm_seen_due_halfsec;
@@ -51,6 +58,22 @@ static uint32_t s_tx_fcnt_inflight;
 static uint8_t s_tx_inflight;
 
 static uint16_t s_local_alarm_id;
+
+/* Local ALARM_EVENT retransmit state (uplink only).
+ * This is intentionally for local alarm triggers (smoke/button) only.
+ * Remote alarm is downlink broadcast from gateway; node should NOT uplink-repeat.
+ */
+static uint8_t s_alarm_event_pending;
+static uint8_t s_alarm_event_tx_count;
+static uint32_t s_alarm_event_due_halfsec;
+
+static void write_u32_be(uint8_t *p, uint32_t v)
+{
+    p[0] = (uint8_t)((v >> 24) & 0xFFU);
+    p[1] = (uint8_t)((v >> 16) & 0xFFU);
+    p[2] = (uint8_t)((v >> 8) & 0xFFU);
+    p[3] = (uint8_t)(v & 0xFFU);
+}
 
 static volatile lora_link_event_t s_ev_queue;
 
@@ -119,7 +142,6 @@ void lora_link_init(uint8_t net_id, uint32_t dev_id)
     }
 
     s_req_heartbeat = 0U;
-    s_req_alarm_event = 0U;
     s_pending_alarm_seen = 0U;
     s_pending_alarm_id = 0U;
     s_alarm_seen_due_halfsec = 0U;
@@ -127,7 +149,16 @@ void lora_link_init(uint8_t net_id, uint32_t dev_id)
     s_tx_fcnt_inflight = 0UL;
     s_local_alarm_id = 1U;
 
+    s_alarm_event_pending = 0U;
+    s_alarm_event_tx_count = 0U;
+    s_alarm_event_due_halfsec = 0UL;
+
     s_ev_queue = LORA_LINK_EVENT_NONE;
+
+    s_last_gw_beacon_halfsec = 0UL;
+    s_gw_seen_once = 0U;
+    s_gw_lost_reported = 0U;
+    s_rtc_synced = 0U;
 
     (void)s_net_id;
     (void)s_dev_id;
@@ -158,7 +189,16 @@ lora_link_event_t lora_link_poll_event(void)
 
 void lora_link_notify_local_alarm(void)
 {
-    s_req_alarm_event = 1U;
+    /* Start a bounded retransmit sequence.
+     * If already pending, do not restart to avoid spamming when app calls this
+     * repeatedly during an active alarm.
+     */
+    if (s_alarm_event_pending == 0U)
+    {
+        s_alarm_event_pending = 1U;
+        s_alarm_event_tx_count = 0U;
+        s_alarm_event_due_halfsec = now_halfsec();
+    }
 }
 
 void lora_link_send_heartbeat(void)
@@ -166,30 +206,39 @@ void lora_link_send_heartbeat(void)
     s_req_heartbeat = 1U;
 }
 
-static uint8_t link_try_start_tx(uint8_t type, const uint8_t *pl, uint8_t pl_len)
+static uint8_t link_try_start_tx_cmd(uint8_t cmd,
+                                     uint8_t src_type,
+                                     uint8_t dst_type,
+                                     const uint8_t *payload_plain,
+                                     uint8_t payload_plain_len,
+                                     const uint8_t *extend,
+                                     uint8_t extend_len)
 {
     uint8_t frame[APP_FRAME_MAX_LEN];
-    uint8_t n;
     uint32_t fcnt;
+    uint8_t n;
 
     if (s_state != LINK_STATE_IDLE)
     {
         return 0U;
     }
 
-#if APP_USE_CRYPTO
+    /* Persistent per-device frame counter used in payload (big-endian). */
     fcnt = s_tx_inflight ? s_tx_fcnt_inflight : nv_store_get_fcnt_up();
-    n = lora_frame_build(APP_DEV_KEY, (uint8_t)APP_MIC_LEN, 1U,
-                         s_net_id, s_dev_id, type, fcnt, 0U,
-                         pl, pl_len,
-                         frame, (uint8_t)sizeof(frame));
-#else
-    (void)fcnt;
-    (void)type;
-    (void)pl;
-    (void)pl_len;
-    n = 0U;
-#endif
+
+    (void)payload_plain;
+    (void)payload_plain_len;
+
+    n = emic_lora_build_frame(APP_PAN_ID,
+                            cmd,
+                            src_type,
+                            dst_type,
+                            payload_plain,
+                            payload_plain_len,
+                            extend,
+                            extend_len,
+                            frame,
+                            (uint8_t)sizeof(frame));
 
     if (n == 0U)
     {
@@ -219,6 +268,20 @@ void lora_link_run(void)
             schedule_next_heartbeat(now);
         }
 
+        /* Gateway loss detection is based on periodic GW_BEACON downlink.
+         * Once we have seen at least one valid beacon, consider gateway lost
+         * if no beacon has been received for APP_GW_LOST_TIMEOUT_S.
+         */
+        if (s_gw_seen_once != 0U)
+        {
+            uint32_t age = now - s_last_gw_beacon_halfsec;
+            if ((age > GW_LOST_TIMEOUT_HALFSEC) && (s_gw_lost_reported == 0U))
+            {
+                s_gw_lost_reported = 1U;
+                link_push_event(LORA_LINK_EVENT_GW_LOST);
+            }
+        }
+
         if (s_pending_alarm_seen && (now >= s_alarm_seen_due_halfsec))
         {
             /* Keep as pending request; TX starts later when idle. */
@@ -233,38 +296,90 @@ void lora_link_run(void)
                 s_state = LINK_STATE_WAIT_CAD;
             }
             s_next_cad_halfsec = now + CAD_PERIOD_HALFSEC;
+
+            log_debug("lora_link_run: CAD requested now=%lu next=%lu",
+                          (unsigned long)now,
+                          (unsigned long)s_next_cad_halfsec);
         }
     }
 
     /* Start any pending TX when radio is idle.
-     * Priority: alarm_event > alarm_seen > heartbeat
+     * Priority: alarm_event (local retx) > alarm_seen > heartbeat
      */
     if (s_state == LINK_STATE_IDLE)
     {
-        if (s_req_alarm_event)
+        if (s_alarm_event_pending)
         {
-            uint8_t pl[2];
-            uint16_t id = s_local_alarm_id++;
-            pl[0] = (uint8_t)(id & 0xFFU);
-            pl[1] = (uint8_t)((id >> 8) & 0xFFU);
-            if (link_try_start_tx((uint8_t)APP_FRAME_TYPE_ALARM_EVENT, pl, 2U))
+            uint32_t now2 = now_halfsec();
+            uint8_t max_total = (uint8_t)(1U + (uint8_t)APP_ALARM_EVENT_RETX_MAX);
+            if ((s_alarm_event_tx_count < max_total) && (now2 >= s_alarm_event_due_halfsec))
             {
-                s_req_alarm_event = 0U;
-            }
-        }
-        else if (s_pending_alarm_seen && (now_halfsec() >= s_alarm_seen_due_halfsec))
-        {
-            uint8_t pl[2];
-            pl[0] = (uint8_t)(s_pending_alarm_id & 0xFFU);
-            pl[1] = (uint8_t)((s_pending_alarm_id >> 8) & 0xFFU);
-            if (link_try_start_tx((uint8_t)APP_FRAME_TYPE_ALARM_SEEN, pl, 2U))
-            {
-                s_pending_alarm_seen = 0U;
+                /* Alarm payload: SrcSeri(6) + NetID(6) + Fcnt(4) */
+                uint8_t pl[16];
+                uint32_t fcnt = s_tx_inflight ? s_tx_fcnt_inflight : nv_store_get_fcnt_up();
+                memcpy(&pl[0], APP_SERI_ED, 6);
+                memcpy(&pl[6], APP_PAN_ID, 6);
+                write_u32_be(&pl[12], fcnt);
+
+                if (link_try_start_tx_cmd(EMIC_LORA_CMD_ALARM,
+                                          (uint8_t)EMIC_LORA_SRC_ED,
+                                          (uint8_t)EMIC_LORA_DST_GW,
+                                          pl,
+                                          (uint8_t)sizeof(pl),
+                                          NULL,
+                                          0U))
+                {
+                    /* Count this transmission attempt as started (TX_DONE/TX_ERROR handled later). */
+                    s_alarm_event_tx_count++;
+                    if (s_alarm_event_tx_count >= max_total)
+                    {
+                        s_alarm_event_pending = 0U;
+                    }
+                    else
+                    {
+                        /* Small jitter derived from base interval to avoid lockstep collisions. */
+                        uint8_t jitter_s = (APP_ALARM_EVENT_RETX_BASE_S >= 4U) ? 2U : 1U;
+                        int16_t j = jitter_halfsec((int16_t)jitter_s);
+                        int32_t next = (int32_t)now2 + (int32_t)((uint32_t)APP_ALARM_EVENT_RETX_BASE_S * (uint32_t)HALFSEC_PER_SEC) + (int32_t)j;
+                        if (next < 0)
+                        {
+                            next = 0;
+                        }
+                        s_alarm_event_due_halfsec = (uint32_t)next;
+                    }
+                }
             }
         }
         else if (s_req_heartbeat)
         {
-            if (link_try_start_tx((uint8_t)APP_FRAME_TYPE_HEARTBEAT, NULL, 0U))
+            /* Heartbeat payload:
+             * SrcSeri(6) + NetID(6) + Fcnt(4) + batt_vol(2) + device_status(1) + firm_id(3) + device_type(1)
+             * Total 23 bytes (will be padded before encryption).
+             */
+            uint8_t pl[23];
+            uint32_t fcnt = s_tx_inflight ? s_tx_fcnt_inflight : nv_store_get_fcnt_up();
+
+            memcpy(&pl[0], APP_SERI_ED, 6);
+            memcpy(&pl[6], APP_PAN_ID, 6);
+            write_u32_be(&pl[12], fcnt);
+
+            /* batt_vol: placeholder 0 for now (0.01V units per doc example). */
+            pl[16] = 0U;
+            pl[17] = 0U;
+
+            /* device_status: placeholder (all 0). */
+            pl[18] = 0U;
+
+            memcpy(&pl[19], APP_FIRM_ID, 3);
+            pl[22] = (uint8_t)APP_DEVICE_TYPE;
+
+            if (link_try_start_tx_cmd(EMIC_LORA_CMD_HEARTBEAT,
+                                      (uint8_t)EMIC_LORA_SRC_ED,
+                                      (uint8_t)EMIC_LORA_DST_GW,
+                                      pl,
+                                      (uint8_t)sizeof(pl),
+                                      NULL,
+                                      0U))
             {
                 s_req_heartbeat = 0U;
             }
@@ -278,57 +393,72 @@ void lora_link_run(void)
         {
             if (rev == RADIO_EVENT_CAD_DETECTED)
             {
+                log_debug("%s", "radio: CAD_DETECTED -> request RX");
                 /* CAD hit -> RX short window */
                 radio_request_rx(APP_RX_AFTER_CAD_MS);
                 s_state = LINK_STATE_WAIT_RX;
             }
             else if (rev == RADIO_EVENT_CAD_DONE)
             {
+                log_debug("%s", "radio: CAD_DONE");
                 /* No activity */
                 s_state = LINK_STATE_IDLE;
             }
             else if (rev == RADIO_EVENT_RX_DONE)
             {
+                log_debug("%s", "radio: RX_DONE");
+
                 uint8_t buf[APP_FRAME_MAX_LEN];
                 uint8_t n = radio_read_rx_payload(buf, (uint8_t)sizeof(buf));
 
-                /* Expect an authenticated broadcast ALARM.
-                 * Payload format (MVP): alarm_id LE16 (bytes 0..1)
-                 */
-#if APP_USE_CRYPTO
+                /* Parse official GW ↔ Node frames (CRC16 + AES-ECB). */
                 {
-                    lora_frame_t fr;
-                    if (lora_frame_parse_and_decrypt(APP_GROUP_KEY, (uint8_t)APP_MIC_LEN, 1U,
-                                                     s_net_id, 0U,
-                                                     buf, n, &fr))
+                    emic_lora_frame_t fr;
+                    if (emic_lora_parse_frame(APP_PAN_ID, buf, n, &fr))
                     {
-                        if ((fr.hdr.type == (uint8_t)APP_FRAME_TYPE_ALARM_BCAST) && (fr.payload_len >= 2U))
-                        {
-                            uint16_t alarm_id = (uint16_t)fr.payload[0] | ((uint16_t)fr.payload[1] << 8);
-                            uint16_t last = nv_store_get_last_alarm_id();
-                            if (alarm_id != last)
-                            {
-                                nv_store_set_last_alarm_id(alarm_id);
-                                link_push_event(LORA_LINK_EVENT_REMOTE_ALARM);
+                        /* Any valid downlink frame counts as “gateway seen” for loss detection. */
+                        s_last_gw_beacon_halfsec = now_halfsec();
+                        s_gw_seen_once = 1U;
+                        s_gw_lost_reported = 0U;
 
-                                /* Schedule ALARM_SEEN uplink with random backoff */
-                                s_pending_alarm_seen = 1U;
-                                s_pending_alarm_id = alarm_id;
-                                {
-                                    uint16_t r = prng_next();
-                                    uint8_t backoff_s = (uint8_t)(r % (APP_ALARM_SEEN_BACKOFF_S_MAX + 1U));
-                                    s_alarm_seen_due_halfsec = now_halfsec() + ((uint32_t)backoff_s * HALFSEC_PER_SEC);
-                                }
+                        /* Alarm downlink: CMD=0x03 from GW. */
+                        if ((fr.cmd == EMIC_LORA_CMD_ALARM) && (fr.src_type == (uint8_t)EMIC_LORA_SRC_GW))
+                        {
+                            /* Payload: SrcSeri(6) + NetID(6) + Fcnt(4)
+                             * Validate NetID matches our PanID.
+                             */
+                            if ((fr.payload_plain_len >= 12U) && (memcmp(&fr.payload[6], APP_PAN_ID, 6) == 0))
+                            {
+                                link_push_event(LORA_LINK_EVENT_REMOTE_ALARM);
                             }
+                        }
+                        else if ((fr.cmd == EMIC_LORA_CMD_ALARM_STOP) && (fr.src_type == (uint8_t)EMIC_LORA_SRC_GW))
+                        {
+                            /* Alarm Stop */
+                            if ((fr.payload_plain_len >= 12U) && (memcmp(&fr.payload[6], APP_PAN_ID, 6) == 0))
+                            {
+                                link_push_event(LORA_LINK_EVENT_REMOTE_ALARM_STOP);
+                            }
+                        }
+                        else if ((fr.cmd == EMIC_LORA_CMD_SILENCE) && (fr.src_type == (uint8_t)EMIC_LORA_SRC_GW))
+                        {
+                            /* Silence */
+                            if ((fr.payload_plain_len >= 12U) && (memcmp(&fr.payload[6], APP_PAN_ID, 6) == 0))
+                            {
+                                link_push_event(LORA_LINK_EVENT_REMOTE_SILENCE);
+                            }
+                        }
+                        else if ((fr.cmd == EMIC_LORA_CMD_ACK) && (fr.src_type == (uint8_t)EMIC_LORA_SRC_GW) && (fr.extend_len == 4U))
+                        {
+                            /* ACK includes extend time_rtc(second).
+                             * We treat this as a keep-alive / time info.
+                             * Converting absolute seconds to RTC calendar is application-defined;
+                             * leave as "seen" only for now.
+                             */
+                            (void)s_rtc_synced;
                         }
                     }
                 }
-#else
-                if ((n >= 2U) && (buf[0] == s_net_id) && (buf[1] == (uint8_t)APP_FRAME_TYPE_ALARM_BCAST))
-                {
-                    link_push_event(LORA_LINK_EVENT_REMOTE_ALARM);
-                }
-#endif
                 s_state = LINK_STATE_IDLE;
             }
             else if (rev == RADIO_EVENT_TX_DONE)
@@ -342,6 +472,7 @@ void lora_link_run(void)
             }
             else if ((rev == RADIO_EVENT_TIMEOUT) || (rev == RADIO_EVENT_ERROR))
             {
+                log_error("radio: %s", (rev == RADIO_EVENT_TIMEOUT) ? "TIMEOUT" : "ERROR");
                 /* TX/RX failed.
                  * We do not automatically retry because the last frame isn't buffered.
                  * FCnt is not committed (still in nv_store), so a higher layer may retry.
@@ -358,4 +489,32 @@ void lora_link_run(void)
     }
 
     (void)s_last_wakeup_count;
+}
+
+uint8_t lora_link_is_gw_online(void)
+{
+    if (s_gw_seen_once == 0U)
+    {
+        return 0U;
+    }
+
+    {
+        uint32_t now = now_halfsec();
+        uint32_t age = now - s_last_gw_beacon_halfsec;
+        return (age <= GW_LOST_TIMEOUT_HALFSEC) ? 1U : 0U;
+    }
+}
+
+uint32_t lora_link_get_gw_last_seen_age_s(void)
+{
+    if (s_gw_seen_once == 0U)
+    {
+        return 0xFFFFFFFFUL;
+    }
+
+    {
+        uint32_t now = now_halfsec();
+        uint32_t age_halfsec = now - s_last_gw_beacon_halfsec;
+        return age_halfsec / (uint32_t)HALFSEC_PER_SEC;
+    }
 }

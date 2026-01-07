@@ -30,6 +30,19 @@ function Find-ExeOnPath([string]$name) {
   return $null
 }
 
+function Find-ExeFileOnPath([string]$exeFileName) {
+  $pathVar = [Environment]::GetEnvironmentVariable("PATH")
+  if (-not $pathVar) { return $null }
+
+  foreach ($dir in ($pathVar -split ";")) {
+    if (-not $dir) { continue }
+    $candidate = Join-Path $dir $exeFileName
+    if (Test-Path $candidate) { return $candidate }
+  }
+
+  return $null
+}
+
 function Find-MakeFallback([string]$workspaceRoot) {
   $candidates = @()
 
@@ -83,6 +96,24 @@ function Find-ToolFallback([string]$exeName) {
   return $null
 }
 
+function Ensure-ExternalExeOnPath([string]$exeFileName) {
+  # IMPORTANT: Do not use Get-Command here; PowerShell aliases (e.g. rm) are not usable by make.
+  $existing = Find-ExeFileOnPath $exeFileName
+  if ($existing) { return $existing }
+
+  $found = Find-ToolFallback $exeFileName
+  if ($found) {
+    $toolDir = Split-Path -Parent $found
+    if ($env:PATH -notlike "*$toolDir*") {
+      $env:PATH = "$toolDir;$env:PATH"
+      Write-Host "[CCRL] Added to PATH: $toolDir ($exeFileName)"
+    }
+    return $found
+  }
+
+  return $null
+}
+
 $workspaceRoot = Resolve-WorkspaceRoot
 $cfgDir = Join-Path $workspaceRoot $Config
 $makefile = Join-Path $cfgDir "makefile"
@@ -118,6 +149,15 @@ if (-not $ccConverter) {
     $env:PATH = "$ccConverterDir;$env:PATH"
     Write-Host "[CCRL] Added to PATH: $ccConverterDir (renesas_cc_converter)"
   }
+}
+
+# The generated makefile's clean target uses MSYS tools (rm/xargs). On Windows, PowerShell aliases
+# (rm -> Remove-Item) do NOT satisfy GNU make; we need actual rm.exe/xargs.exe on PATH.
+$rmExe = Ensure-ExternalExeOnPath "rm.exe"
+$xargsExe = Ensure-ExternalExeOnPath "xargs.exe"
+if (-not $rmExe -or -not $xargsExe) {
+  Write-Host "[CCRL] Warning: rm.exe/xargs.exe not found; 'make clean' may not fully work." \
+    "(Consider adding e2studio/MSYS bin directory to PATH.)"
 }
 
 $baseArgs = @("-C", $cfgDir, "-f", "makefile")
