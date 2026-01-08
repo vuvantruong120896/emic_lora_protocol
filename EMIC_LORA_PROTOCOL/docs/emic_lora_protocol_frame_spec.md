@@ -185,6 +185,15 @@ Quy ước trong bảng dưới:
 |---|---:|
 | Seri ED | 6 bytes |
 
+**Implementation note (Join Mode / user-initiated connect setup):**
+
+- JoinRequest là uplink **không yêu cầu ACK**.
+- Khi người dùng vào **Join Mode**, node sẽ:
+  - Gửi JoinRequest lặp lại mỗi **1s** cho đến khi nhận JoinAccept.
+  - Sau mỗi TX JoinRequest, node mở một RX window dài hơn (ví dụ `APP_RX_AFTER_JOIN_TX_MS`) để chờ JoinAccept.
+  - Trong thời gian Join Mode, luồng **CAD paging định kỳ tạm dừng** để tránh tranh lịch radio với nhịp TX/RX của JoinRequest.
+- Khi thoát Join Mode (single click hoặc timeout), JoinRequest dừng và CAD paging hoạt động lại theo lịch bình thường.
+
 ### 5.2) GW → ED: JoinAccept (`CMD=0x02`)
 
 Payload (Encrypt):
@@ -195,6 +204,11 @@ Payload (Encrypt):
 | ShortAddr | 2 bytes | **Không sử dụng** (omit trong V1 hiện tại) |
 | NetID | 6 bytes | |
 | channel | 1 byte | |
+
+**Channel meaning (implementation):**
+
+- `channel` là **channel index** (0..8), map sang bảng tần số AS923 920–923 MHz (odd channels, spacing 300 kHz) trong tài liệu node spec.
+- Trong Join Mode, node luôn gửi JoinRequest ở **index 0** (meeting point), sau đó switch sang `channel` được cấp phát khi nhận JoinAccept.
 
 Extend (plaintext):
 

@@ -11,12 +11,34 @@ Mục tiêu: mô tả **1 cách trực quan nhất** "hệ thống chạy như t
 - CAD symbols: 4
 - RX after CAD hit: ~120 ms
 - Heartbeat uplink: ~240 s ± jitter
-- Gateway → Node: phát **GW_BEACON (DL, broadcast)** định kỳ (gợi ý 60–90s)
-- Node gateway-lost: **> 300s** không thấy beacon hợp lệ (sau khi đã từng thấy beacon)
+- Gateway → Node: cung cấp **time_rtc (seconds)** trong **Extend** của `JOIN_ACCEPT` và `ACK` (theo `docs/emic_lora_protocol_frame_spec.md`)
+- Node gateway-lost: **> 300s** không thấy **downlink hợp lệ** (sau khi đã từng thấy downlink)
 
 ---
 
 ## 1) Boot flow
+
+Ghi chú (đồng bộ với firmware hiện tại):
+
+- `joined` **không** được lưu bằng cờ riêng trong DataFlash.
+- Node suy ra trạng thái `joined` bằng cách đọc **PanID/NetID (6 bytes)** trong DataFlash:
+  - all-zero ⇒ chưa joined (dùng `APP_PAN_ID` làm pairing/default)
+  - khác all-zero ⇒ đã joined (dùng PanID đã lưu)
+
+**Dữ liệu lưu trong DataFlash (`nv_store`, record v6):**
+
+- `fcnt_up` (checkpoint theo mask để giảm wear)
+- `fcnt_down` (next expected, cập nhật từ downlink payload có FCnt)
+- `last_alarm_id`
+- `lora_channel_idx`
+- `pan_id` (NetID/PanID, 6 bytes)
+- `seri_ed` (6 bytes)
+- `fire_start_epoch_s` (epoch seconds từ 2000-01-01; 0 = unknown)
+- Device config:
+  - `lora_rssi_threshold_dbm` (int16 dBm)
+  - `heartbeat_period_s` (uint16 seconds)
+  - `smoke_sensitivity` (uint16)
+  - `heat_sensitivity` (uint16)
 
 ```mermaid
 sequenceDiagram
@@ -32,10 +54,11 @@ sequenceDiagram
   APP->>HAL: hal_timer_init() (TAU0_0 setup)
   APP->>HAL: hal_rtc_init() + enable 0.5s tick
   APP->>APP: alarm_service_init() / smoke_service_init()
+  APP->>APP: battery_init() (MVP: may return 0mV if not wired yet)
   APP->>APP: heartbeat_service_init() / power_service_init()
   APP->>APP: nv_store_init()
   APP->>RADIO: radio_init() (sx1262_init)
-  APP->>LINK: lora_link_init(net_id, dev_id)
+  APP->>LINK: lora_link_init()
 ```
 
 ---
@@ -65,8 +88,9 @@ flowchart TD
    - `lora_link_run()`: CAD/RX/TX FSM (IDLE/WAIT_CAD/WAIT_RX/WAIT_TX)
    - `alarm_service_run()`: buzzer pattern FSM
 3. **Collect and post all events** (`app_collect_and_post_events()`):
-   - Button gestures: loop poll → CLICK_1/CLICK_2/HOLD_1S/HOLD_3S/HOLD_5S
-   - Link events: loop poll → HEARTBEAT_DUE/REMOTE_ALARM_ON/REMOTE_ALARM_OFF
+  - Button gestures: loop poll → CLICK_1..CLICK_4, HOLD_1S/3S/5S
+    - `app_main` maps these raw gestures into **semantic** `DEVICE_EVENT_BTN_*` actions.
+  - Link events: loop poll → HEARTBEAT_DUE/REMOTE_ALARM_ON/REMOTE_ALARM_OFF/REMOTE_SILENCE + protocol events
    - Smoke sensor: loop poll → FIRE_DETECTED/FIRE_CLEARED (dual-edge detection)
 4. **Dispatch FSM** (`device_fsm_run()`): drain event queue → state-dependent actions
 5. **Power idle** (`power_service_idle()`): decide STOP vs HALT based on activity state
@@ -100,7 +124,7 @@ Trạng thái chính ở lớp Application hiện tại được quản lý bở
 - `DEVICE_EVENT_SMOKE_CLEARED`: set local alarm OFF (Option B: auto-clear)
 - `DEVICE_EVENT_LINK_REMOTE_ALARM_ON`: set remote alarm ON
 - `DEVICE_EVENT_LINK_REMOTE_ALARM_OFF`: set remote alarm OFF
-- `DEVICE_EVENT_BTN_HOLD_1S`: (SMOKE_TEST) cũng set local alarm ON
+- `DEVICE_EVENT_BTN_TEST`: (SMOKE_TEST) cũng set local alarm ON
 
 **Ghi chú:**
 
@@ -117,21 +141,36 @@ Thay vì vẽ nhiều self-loop (khó đọc), hãy nhìn theo **2 cờ (flags)*
 Rule state:
 
 - `DEVICE_STATE_ALARM` khi `(local_alarm != 0) || (remote_alarm != 0)`
-- `DEVICE_STATE_NORMAL` khi `(local_alarm == 0) && (remote_alarm == 0)`
+- `DEVICE_STATE_JOIN_MODE` khi `(local_alarm == 0) && (remote_alarm == 0) && (join_mode_active != 0)`
+- `DEVICE_STATE_NORMAL` khi `(local_alarm == 0) && (remote_alarm == 0) && (join_mode_active == 0)`
 
 ```mermaid
 flowchart TD
   N["DEVICE_STATE_NORMAL<br/>local_alarm=0<br/>remote_alarm=0"]
+  J["DEVICE_STATE_JOIN_MODE<br/>join_mode_active=1"]
   A["DEVICE_STATE_ALARM<br/>(local_alarm OR remote_alarm)"]
 
+  N -->|"Enter JOIN_MODE"| J
+  J -->|"Exit JOIN_MODE"| N
   N -->|"Enter ALARM"| A
+  J -->|"Enter ALARM"| A
   A -->|"Both cleared"| N
 ```
 
 **Events that ENTER ALARM** (NORMAL → ALARM):
 - `DEVICE_EVENT_SMOKE_DETECTED`: set `local_alarm=1`, notify GW
-- `DEVICE_EVENT_BTN_HOLD_1S`: set `local_alarm=1`, notify GW
+- `DEVICE_EVENT_BTN_TEST`: set `local_alarm=1`, notify GW
 - `DEVICE_EVENT_LINK_REMOTE_ALARM_ON`: set `remote_alarm=1`
+
+**Events that ENTER JOIN_MODE** (NORMAL → JOIN_MODE):
+
+- `DEVICE_EVENT_BTN_JOIN_MODE_ENTER`: bật Join Mode (chỉ khi chưa joined)
+
+**Events that EXIT JOIN_MODE** (JOIN_MODE → NORMAL):
+
+- `DEVICE_EVENT_BTN_JOIN_MODE_EXIT`: thoát Join Mode (single click)
+- `DEVICE_EVENT_JOIN_MODE_TIMEOUT`: timeout 2 phút
+- `DEVICE_EVENT_LINK_JOIN_ACCEPTED`: join thành công → thoát Join Mode và hiển thị join-success
 
 **Events while in ALARM** (stay in ALARM or update flag):
 - `DEVICE_EVENT_SMOKE_DETECTED`: set `local_alarm=1`
@@ -147,18 +186,22 @@ flowchart TD
 | `DEVICE_EVENT_SMOKE_CLEARED`         |              0 | (giữ nguyên) | `ALARM` nếu remote=1, ngược lại `NORMAL` |
 | `DEVICE_EVENT_LINK_REMOTE_ALARM_ON`  | (giữ nguyên) |              1 | `ALARM`                                        |
 | `DEVICE_EVENT_LINK_REMOTE_ALARM_OFF` | (giữ nguyên) |              0 | `ALARM` nếu local=1, ngược lại `NORMAL`  |
-| `DEVICE_EVENT_BTN_HOLD_1S`           |              1 | (giữ nguyên) | `ALARM`                                        |
+| `DEVICE_EVENT_BTN_TEST`              |              1 | (giữ nguyên) | `ALARM`                                        |
 
 **Events không làm đổi state (nhưng vẫn có action):**
 
 - `DEVICE_EVENT_LINK_HEARTBEAT_DUE`: gửi heartbeat uplink
-- `DEVICE_EVENT_BTN_CLICK_1/2`, `DEVICE_EVENT_BTN_HOLD_3S/5S`: phụ thuộc policy; một số gesture chỉ log/hook hoặc bị block khi đang alarm
+- `DEVICE_EVENT_BTN_CONFIRM/EXIT/FACTORY_RESET`: phụ thuộc policy; một số action chỉ log/hook hoặc bị block khi đang alarm
+- `DEVICE_EVENT_BTN_JOIN_REQUEST`: legacy hook (không còn dùng trong Join Mode UX hiện tại)
+- `DEVICE_EVENT_BTN_JOIN_MODE_ENTER/EXIT`: chỉ điều khiển Join Mode
 
 ---
 
 ## 3) Luồng bình thường (không có alarm)
 
 ### 3.1 CAD paging theo cấu hình (APP_CAD_SCAN_PERIOD_MS)
+
+**Note:** Khi Join Mode đang bật, `lora_link` sẽ **tạm dừng CAD paging** để không tranh lịch radio với chu kỳ JoinRequest/RX.
 
 ```mermaid
 sequenceDiagram
@@ -201,16 +244,35 @@ sequenceDiagram
 
 ---
 
-## 4) GW_BEACON flow (gateway → node sync time)
+## 3.3 Join Mode (user-initiated connect setup)
 
-### 4.1 Gateway behavior (gợi ý)
+Join Mode là một mode tạm thời để vào mạng theo thao tác người dùng.
 
-- Định kỳ phát **GW_BEACON** (broadcast) mỗi 60–90s.
-- Mỗi lần phát nên là **burst** đủ dài để đi qua ít nhất 1 lần CAD scan của node.
-  - Gợi ý: burst duration **≥ Tscan + 1s**.
-- Nội dung beacon nên chứa thời gian RTC (sec/min/hour/day/week/month/year) để node đồng bộ.
+**Behavior (theo code hiện tại):**
 
-### 4.2 Node behavior (nhận beacon)
+- Enter: `BUTTON_EVENT_CLICK_2` → `DEVICE_EVENT_BTN_JOIN_MODE_ENTER`
+- While active:
+  - LED xanh toggle mỗi 0.5s (`alarm_service_set_joining(1)`)
+  - Radio sử dụng **channel index 0** (CH0 meeting point)
+  - Gửi `JoinRequest` mỗi 1s
+  - Sau mỗi TX JoinRequest: mở RX window dài hơn `APP_RX_AFTER_JOIN_TX_MS` để chờ `JoinAccept`
+  - CAD paging bị tạm dừng
+- Exit:
+  - `BUTTON_EVENT_CLICK_1` → `DEVICE_EVENT_BTN_JOIN_MODE_EXIT`
+  - Hoặc timeout 2 phút (`DEVICE_EVENT_JOIN_MODE_TIMEOUT`)
+- Join success:
+  - Nhận `JoinAccept` → `DEVICE_EVENT_LINK_JOIN_ACCEPTED` → thoát Join Mode
+  - Lưu `channel index` vào Data Flash và switch sang kênh được cấp phát cho CAD/RX/TX sau đó
+  - Hiển thị join-success: LED xanh toggle mỗi 1s trong vài giây
+
+## 4) Time sync (gateway → node)
+
+Theo protocol V1, gateway gửi `time_rtc(second)` (4 bytes, plaintext) trong **Extend** của:
+
+- `JOIN_ACCEPT`
+- `ACK`
+
+Node sẽ set RTC theo giá trị `time_rtc` khi nhận được các frame hợp lệ này.
 
 ```mermaid
 sequenceDiagram
@@ -232,10 +294,9 @@ sequenceDiagram
   LINK->>RADIO: radio_read_rx_payload()
   LINK->>PROTO: parse + verify CRC16 + decrypt (AES-ECB)
 
-  alt frame == GW_BEACON
-    LINK->>LINK: update last_gw_beacon_time
-    LINK->>HAL: hal_rtc_set_time() (only first valid beacon)
-  else frame == ALARM_BCAST
+  alt frame == JOIN_ACCEPT or ACK (extend has time_rtc)
+    LINK->>HAL: hal_rtc_set_time() (from time_rtc)
+  else frame == ALARM_BCAST/ALARM_STOP/SILENCE/etc
     LINK->>LINK: handled by alarm flow
   else other/invalid
     LINK->>LINK: ignore
@@ -244,8 +305,8 @@ sequenceDiagram
 
 Ghi chú implementation:
 
-- Node cập nhật `last_gw_beacon_time` mỗi khi nhận beacon hợp lệ.
-- Node chỉ **set RTC** ở **beacon hợp lệ đầu tiên** (giảm rủi ro "giật giờ" liên tục).
+- Firmware hiện tại set RTC khi nhận `time_rtc` từ `JOIN_ACCEPT`/`ACK`.
+- Cờ `rtc_synced` dùng để quyết định có lưu `fire_start_epoch_s` khi vào ALARM.
 
 ---
 
@@ -253,9 +314,9 @@ Ghi chú implementation:
 
 ```mermaid
 flowchart TD
-  TICK["RTC tick in main"] --> CHECK{Seen any GW_BEACON before?}
+  TICK["RTC tick in main"] --> CHECK{Seen any valid downlink before?}
   CHECK -- no --> OK["No decision yet"]
-  CHECK -- yes --> AGE["age = now - last_gw_beacon"]
+  CHECK -- yes --> AGE["age = now - last_valid_downlink"]
   AGE --> LOST{age > 300s?}
   LOST -- no --> ONLINE["Gateway online"]
   LOST -- yes --> EVT["Raise GW_LOST once"]
@@ -263,8 +324,9 @@ flowchart TD
 
 Ý nghĩa:
 
-- "Gateway online" = trong vòng 300s gần nhất có beacon hợp lệ.
-- Khi mất beacon > 300s, node **phát hiện** và phát event `GW_LOST` (1 lần cho mỗi lần transition).
+- "Gateway online" = trong vòng 300s gần nhất có **downlink hợp lệ**.
+- Downlink hợp lệ thường là `ACK` sau các uplink (HEARTBEAT/ALARM/EXIT...), nên **không cần** một loại "beacon" riêng.
+- Khi mất downlink > 300s, node **phát hiện** và phát event `GW_LOST` (1 lần cho mỗi lần transition).
 
 ---
 
@@ -341,28 +403,36 @@ sequenceDiagram
 
 ### 7.2 Local alarm từ Button (gesture-level events mapped to business actions)
 
-Button emits **gesture-level events only** (no business meaning), device_fsm maps gestures to actions per state:
+Button emits **gesture-level events only** (no business meaning).
+
+Mapping rule (current architecture):
+
+- `button` (driver) emits raw gestures.
+- `app_main` maps raw gestures into **semantic application actions** (`DEVICE_EVENT_BTN_*`).
+- `device_fsm` consumes semantic actions and executes policy/state-dependent behavior.
 
 **Gesture events:**
 
 - `BUTTON_EVENT_CLICK_1`: single tap
 - `BUTTON_EVENT_CLICK_2`: double tap
+- `BUTTON_EVENT_CLICK_3`: triple tap (reserved)
+- `BUTTON_EVENT_CLICK_4`: 4 taps (used to arm EXIT)
 - `BUTTON_EVENT_HOLD_1S`: hold ≥1000ms
 - `BUTTON_EVENT_HOLD_3S`: hold ≥3000ms
 - `BUTTON_EVENT_HOLD_5S`: hold ≥5000ms
 
-**Device FSM mapping (DEVICE_STATE_NORMAL):**
+**App mapping (gesture → semantic action):**
 
-- HOLD_1S → SMOKE_TEST: set local alarm + notify GW
-- HOLD_3S → reserved (future hush feature)
-- HOLD_5S → FACTORY_RESET: clear all alarms + reinit config
-- CLICK_2 → JOIN_NETWORK: application hook
-- CLICK_1 → CONFIRM: application hook
+- HOLD_1S → `DEVICE_EVENT_BTN_TEST` (chỉ khi chưa joined và không ở Join Mode)
+- CLICK_2 → `DEVICE_EVENT_BTN_JOIN_MODE_ENTER`
+- CLICK_4 arms EXIT; next HOLD_3S emits `DEVICE_EVENT_BTN_EXIT`
+- HOLD_5S → `DEVICE_EVENT_BTN_FACTORY_RESET`
+- CLICK_1 → nếu Join Mode đang active: `DEVICE_EVENT_BTN_JOIN_MODE_EXIT`; nếu không: pre-join TEST (chưa joined) hoặc CONFIRM (đã joined)
 
-**Device FSM mapping (DEVICE_STATE_ALARM):**
+**Device FSM behavior:**
 
-- CLICK_1 → acknowledge/UI feedback (no action, safety-first)
-- HOLD_5S → blocked (never allow factory reset during alarm)
+- `DEVICE_EVENT_BTN_CONFIRM` → acknowledge/UI feedback (no state change)
+- `DEVICE_EVENT_BTN_FACTORY_RESET` → blocked during alarm (safety-first)
 
 ```mermaid
 sequenceDiagram
@@ -374,11 +444,53 @@ sequenceDiagram
 
   APP->>BTN: button_run()
   BTN-->>APP: BUTTON_EVENT_HOLD_1S (gesture, no meaning)
-  APP->>FSM: device_fsm_post_event(DEVICE_EVENT_BTN_HOLD_1S)
+  APP-->>APP: map gesture -> DEVICE_EVENT_BTN_TEST
+  APP->>FSM: device_fsm_post_event(DEVICE_EVENT_BTN_TEST)
   APP->>FSM: device_fsm_run()
   FSM->>ALARM: alarm_service_set_local_alarm(1) - map to SMOKE_TEST action
   FSM->>LINK: lora_link_notify_local_alarm()
 ```
+
+---
+
+## 7.3) LED/Buzzer patterns (MVP + status indicators)
+
+`alarm_service` là nơi duy nhất điều khiển output `buzzer/led`.
+
+**Priority order (cao → thấp):**
+
+- ALARM (local/remote)
+- JOINING (Join Mode active)
+- JOIN_SUCCESS (short indication after JoinAccept)
+- PREJOIN_TEST (before joined)
+- TEST (GW Test ED)
+- FAULT
+- LOW_BATT
+- OFFLINE
+- NORMAL
+
+**Buzzer patterns:**
+
+- ALARM: Temporal-3 (UL) — 0.5s ON / 0.5s OFF ×3, rồi 1.5s OFF (chu kỳ 4.5s)
+- Remote silence (non-source nodes): nếu `remote_alarm=1` và `local_alarm=0` thì buzzer OFF trong 9 phút
+- TEST: beep-beep (100ms ON, 100ms OFF, 100ms ON, 700ms OFF)
+- FAULT: beep-beep rồi nghỉ dài (chu kỳ 5s)
+- LOW_BATT: chirp 60ms mỗi 30s
+- OFFLINE/NORMAL: buzzer OFF
+- JOINING/JOIN_SUCCESS: buzzer OFF
+- PREJOIN_TEST (before joined): buzzer toggle 0.5s ON / 0.5s OFF
+
+**LED patterns:**
+
+- ALARM: LED đỏ nhấp nháy 0.5s ON/OFF, LED xanh phản ánh flag `remote_alarm`
+- TEST: blink cả hai LED 1Hz (0.5s ON / 0.5s OFF)
+- FAULT: luân phiên RED/GREEN mỗi 0.5s
+- LOW_BATT: RED nhấp nháy 0.5s ON mỗi 8s
+- OFFLINE: RED nhấp nháy 0.5s ON mỗi 2s
+- NORMAL: GREEN nhấp nháy 0.5s ON mỗi 60s
+- JOINING: GREEN toggle mỗi 0.5s (RED OFF)
+- JOIN_SUCCESS: GREEN toggle mỗi 1s trong vài giây (RED OFF)
+- PREJOIN_TEST (before joined): RED toggle mỗi 0.5s (GREEN OFF)
 
 ---
 
@@ -398,6 +510,7 @@ flowchart TD
 
 Ghi chú:
 
+- `alarm_service_is_active()` hiện được hiểu là **buzzer pattern engine đang active** (cần giữ high-speed clocks).
 - Khi buzzer kêu: phải tránh STOP vì STOP dừng high-speed clocks.
 - Khi radio đang chờ IRQ (CAD/RX/TX): tránh STOP để không phụ thuộc khả năng wake DIO1 trong STOP.
 

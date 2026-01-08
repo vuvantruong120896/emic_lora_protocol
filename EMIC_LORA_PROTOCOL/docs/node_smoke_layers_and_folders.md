@@ -204,4 +204,4 @@ Hiện các phần chính đã nằm trong `src/user/**` và build được bằ
 Các phần vẫn là MVP/placeholder:
 - battery measurement (ADC)
 - smoke sensor thật (hiện placeholder; button đã được tách riêng cho gesture/test/provisioning)
-- NVM thật cho FCnt/last_alarm_id (hiện RAM-backed)
+- NVM: `nv_store` đã là DataFlash-backed (FCnt up/down, identity, channel idx, fire start time, device config)

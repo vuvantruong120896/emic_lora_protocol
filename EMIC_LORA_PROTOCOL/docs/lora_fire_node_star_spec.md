@@ -84,7 +84,7 @@ Node after CAD hit:
 
 - RX listen time after CAD hit (Trx): **80–150 ms** (khuyến nghị)
 
-### 2.4 Gateway beacon (downlink) — time sync + gateway-loss detection
+### 2.4 Time sync + gateway-loss detection
 
 Mục tiêu:
 
@@ -93,15 +93,13 @@ Mục tiêu:
 
 Nguyên lý:
 
-- Gateway phát frame **GW_BEACON (DL, broadcast)** định kỳ.
-- Node vẫn dùng **CAD paging** như ALARM: CAD hit → mở RX ngắn để bắt beacon.
+- Protocol V1 cung cấp `time_rtc(second)` trong **Extend** của `JOIN_ACCEPT` và `ACK` (plaintext, 4 bytes).
+- Node set RTC theo `time_rtc` khi nhận các frame hợp lệ.
+- Gateway-loss detection phía node dựa trên việc có thấy **downlink hợp lệ** gần đây hay không (thường là `ACK` sau uplink).
 
 Khuyến nghị vận hành:
 
-- Beacon period (gateway): **60–90 s**.
-- Mỗi lần phát beacon nên là **một burst** đủ dài để chắc chắn đi qua ít nhất 1 lần CAD scan của node.
-  - Gợi ý: burst duration **≥ Tscan + 1s**.
-- Node báo gateway lost nếu **không nhận beacon > 300 s**.
+- Node báo gateway lost nếu **không nhận downlink hợp lệ > 300 s** (sau khi đã từng thấy downlink).
 
 ### 2.5 Heartbeat parameters
 
@@ -115,12 +113,12 @@ Khuyến nghị vận hành:
 
 ### 3.1 Uplink heartbeat
 
-- Unconfirmed (không ACK) để giảm airtime và tránh tắc nghẽn.
-- Gateway chỉ cần log lần cuối nghe thấy node.
+- Theo protocol V1, hầu hết uplink ED→GW cần được gateway phản hồi `ACK` (trừ `JOIN_REQUEST`).
+- Gateway dùng `ACK` để xác nhận frame và đồng thời cung cấp `time_rtc` cho node.
 
 ### 3.1.1 Uplink “ALARM_EVENT” (local alarm only)
 
-- Chỉ áp dụng khi **local alarm** (smoke/button). Khi gateway broadcast xuống (ALARM_BCAST/GW_BEACON), node **không uplink lặp**.
+- Chỉ áp dụng khi **local alarm** (smoke/button). Khi gateway broadcast xuống (ALARM_BCAST), node **không uplink lặp**.
 - Node có thể **gửi lặp lại** ALARM_EVENT với số lần giới hạn để tăng độ tin cậy trong môi trường nhiễu.
 - Khoảng cách giữa các lần gửi: base interval + jitter nhỏ để tránh nhiều node phát đồng pha.
 
@@ -175,8 +173,8 @@ Ghi chú: phần này mang tính khuyến nghị kiến trúc. Định dạng fr
 
 Các field gợi ý (để dễ parse, ít RAM):
 
-- NetID (1–2 B)
-- DevID (4 B)
+- NetID / PanID (6 B)
+- Seri ED (6 B)
 - Type (1 B)
 - FCnt (4 B)
 - Flags (1 B)
@@ -195,8 +193,7 @@ Tag/MIC: (dành cho V2 nếu triển khai AEAD/MIC).
   - alarm type, level, local timestamp/uptime
 - ALARM_BCAST (DL, broadcast)
   - alarm id / event counter, alarm type, optional zone
-- GW_BEACON (DL, broadcast)
-  - time (BCD): sec, min, hour, day, week, month, year
+- Time sync: `time_rtc(second)` trong Extend của `JOIN_ACCEPT` và `ACK` (4 bytes, plaintext)
 - ALARM_SEEN (UL)
   - alarm id (từ ALARM_BCAST), status “actuating”, optional RSSI/SNR last
 
@@ -231,7 +228,7 @@ Tag/MIC: (dành cho V2 nếu triển khai AEAD/MIC).
 
 - Mở RX trong Trx=80–150ms
 - Nếu decode/verify ALARM_BCAST OK → ALARM_ACTUATE
-- Nếu decode/verify GW_BEACON OK → (sync time nếu cần) → về SLEEP
+- Nếu nhận `ACK`/`JOIN_ACCEPT` hợp lệ (có `time_rtc`) → sync time nếu cần → về SLEEP
 - Nếu hết Trx mà không nhận được frame hợp lệ → về SLEEP
 
 4) WAKE_HEARTBEAT_TX
@@ -246,10 +243,24 @@ Tag/MIC: (dành cho V2 nếu triển khai AEAD/MIC).
 
 Ánh xạ hành vi button (dùng cho test/provisioning cục bộ):
 
-- Hold **>= 1s**: SMOKE_TEST (node kêu + uplink ALARM_EVENT)
-- Double click: JOIN_NETWORK (hook / provisioning mode)
+- **Join Mode (Connect setup)**
+  - Double click: vào Join Mode
+    - LED xanh toggle mỗi 0.5s
+    - Gửi JoinRequest mỗi 1s
+    - Sau mỗi TX JoinRequest: mở RX window để chờ JoinAccept
+    - Trong Join Mode: CAD paging tạm dừng để tránh tranh lịch radio
+  - Single click khi đang Join Mode: thoát Join Mode
+  - Timeout Join Mode: 2 phút
+  - Khi JoinAccept: thoát Join Mode và hiển thị join-success (LED xanh toggle mỗi 1s trong vài giây)
+
+- **Test button behavior**
+  - Khi chưa joined và không ở Join Mode:
+    - Single click hoặc hold >= 1s: chạy pre-join test 8s (LED đỏ toggle 0.5s + buzzer toggle 0.5s)
+  - Khi đã joined:
+    - Hold >= 1s: ALARM ON (notify uplink), release: ALARM OFF (nếu không có smoke)
+
 - Hold **>= 5s**: FACTORY_RESET (reset trạng thái local, reset counters/NV theo MVP)
-- Single click: CONFIRM (hook / xác nhận thao tác)
+- Single click (khi không ở Join Mode và đã joined): CONFIRM (hook / xác nhận thao tác)
 
 ### 6.3 Alarm flow
 
@@ -308,6 +319,36 @@ Kết luận:
 
 - Tránh dynamic allocation.
 - Parse frame theo fixed offsets.
+
+---
+
+## 10. LoRa Channel Plan (AS923 920–923 MHz)
+
+**Số lượng channel:** 9
+
+**Channel list (odd channels, spacing 300 kHz):**
+
+| Index | Channel | Tần số (Hz) | Tần số (MHz) |
+|---:|---|---:|---:|
+| 0 | CH1  | 920225000 | 920.225 |
+| 1 | CH3  | 920525000 | 920.525 |
+| 2 | CH5  | 920825000 | 920.825 |
+| 3 | CH7  | 921125000 | 921.125 |
+| 4 | CH9  | 921425000 | 921.425 |
+| 5 | CH11 | 921725000 | 921.725 |
+| 6 | CH13 | 922025000 | 922.025 |
+| 7 | CH15 | 922325000 | 922.325 |
+| 8 | CH17 | 922625000 | 922.625 |
+
+**Purpose:**
+
+- Giảm collision/nhiễu khi nhiều node/mạng hoạt động cùng khu vực.
+- Tuân thủ quy định băng tần AS923.
+
+**Usage rule (MVP):**
+
+- **Join Mode (pairing/config):** luôn dùng **channel index 0** (CH0 meeting point).
+- **Operating:** GW cấp phát `channel` trong JoinAccept; node lưu `channel index` vào Data Flash và dùng kênh này cho CAD/RX/TX sau đó.
 - FCnt lưu flash theo checkpoint (ví dụ mỗi 64/128 frame) để giảm wear.
 - CAD scheduler dùng RTC để giảm drift và chạy ổn định.
 
