@@ -1,3 +1,17 @@
+/**
+ * @file emic_lora_crypto.c
+ * @brief Implementation of cryptographic utilities: key derivation and AES-ECB cipher.
+ *
+ * @details
+ * - Key derivation uses a template key with PanID injection + CRC16 finalization
+ * - AES-128 ECB mode encryption/decryption
+ * - All operations are in-place (data buffer is modified)
+ *
+ * @author EMIC Project
+ * @version 1.0.0
+ * @date 2026-01-09
+ */
+
 #include "emic_lora_crypto.h"
 
 #include <string.h>
@@ -7,9 +21,13 @@
 
 #include "../utils/aes128.h"
 
-/* AES template key (16B). The session key is derived by:
- * - bytes[0..5] overwritten with PanID (6B)
- * - bytes[14..15] overwritten with CRC16(bytes[0..13])
+/**
+ * @brief AES-128 template key (16 bytes).
+ *
+ * Session key derivation process:
+ * - bytes[0..5]: overwritten with PanID
+ * - bytes[6..13]: kept from template
+ * - bytes[14..15]: overwritten with CRC16(bytes[0..13])
  */
 static const uint8_t s_key_template[16] = {
     0x2b, 0x7e, 0x15, 0x16, 0x28, 0xae, 0xd2, 0xa6,

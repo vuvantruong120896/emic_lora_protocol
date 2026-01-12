@@ -1,10 +1,32 @@
+/**
+ * @file emic_lora_crc16_modbus.c
+ * @brief Implementation of CRC-16/MODBUS checksum.
+ *
+ * @details
+ * Provides CRC-16/MODBUS computation with bitwise polynomial reflection.
+ *
+ * @author EMIC Project
+ * @version 1.0.0
+ * @date 2026-01-09
+ */
+
 #include "emic_lora_crc16_modbus.h"
 
 #include <stddef.h>
 
-#define EMIC_LORA_CRC_POLY_REVERSED   (0xA001U)
-#define EMIC_LORA_CRC_INIT            (0xFFFFU)
+#define EMIC_LORA_CRC_POLY_REVERSED   (0xA001U)  /**< CRC polynomial (reversed bit order) */
+#define EMIC_LORA_CRC_INIT            (0xFFFFU)  /**< CRC initial value */
 
+/**
+ * @brief Update CRC value with one byte using bitwise polynomial reflection.
+ *
+ * @param crc Current CRC value
+ * @param data Input byte
+ *
+ * @return Updated CRC value
+ *
+ * @note Internal helper function; uses reflected polynomial 0xA001.
+ */
 static uint16_t crc16_update(uint16_t crc, uint8_t data)
 {
     uint8_t i;

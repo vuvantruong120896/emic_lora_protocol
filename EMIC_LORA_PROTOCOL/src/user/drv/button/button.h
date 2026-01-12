@@ -13,9 +13,11 @@ typedef enum
     BUTTON_EVENT_NONE = 0,
     BUTTON_EVENT_CLICK_1 = 1,        /* single click */
     BUTTON_EVENT_CLICK_2 = 2,        /* double click */
-    BUTTON_EVENT_HOLD_1S = 3,        /* hold >= 1s */
-    BUTTON_EVENT_HOLD_3S = 4,        /* hold >= 3s */
-    BUTTON_EVENT_HOLD_5S = 5         /* hold >= 5s */
+    BUTTON_EVENT_CLICK_3 = 3,        /* triple click */
+    BUTTON_EVENT_CLICK_4 = 4,        /* quadruple click */
+    BUTTON_EVENT_HOLD_1S = 5,        /* hold >= 1s */
+    BUTTON_EVENT_HOLD_3S = 6,        /* hold >= 3s */
+    BUTTON_EVENT_HOLD_5S = 7         /* hold >= 5s */
 } button_event_t;
 
 void button_init(void);

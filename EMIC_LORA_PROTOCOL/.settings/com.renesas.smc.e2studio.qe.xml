@@ -41,16 +41,18 @@
     </Segment>
     <Segment id="Component">
         <Setting id="Config_TAU0_0" value="CG"/>
-        <Setting id="r_bsp" value=""/>
         <Setting id="Config_CSI20" value="CG"/>
         <Setting id="Config_INTC" value="CG"/>
         <Setting id="Config_UARTA1" value="CG"/>
+        <Setting id="r_bsp" value=""/>
         <Setting id="Config_RTC" value="CG"/>
         <Setting id="Config_PORT" value="CG"/>
         <Setting id="Config_ITL000_ITL001_ITL012_ITL013" value="CG"/>
+        <Setting id="r_rfd_rl78_t01_dataflash" value="Generic SW"/>
+        <Setting id="r_rfd_rl78_t01_common" value="Generic SW"/>
         <Segment component="com.renesas.smc.tools.swcomponent.codegenerator.rl78.pwm" id="Config_TAU0_0" source="com.renesas.smc.tools.swcomponent.codegenerator.source">
             <Setting id="Operation" value="CK0"/>
-            <Setting id="IntervalValue" value="0.5"/>
+            <Setting id="IntervalValue" value="0.1"/>
             <Setting id="IntervalUnit" value="ms"/>
             <Setting id="MasterIntEnable" value="Disable"/>
             <Setting id="slavechannel3" value="Enable"/>
@@ -111,29 +113,6 @@
                 <Setting id="slaveIntPriority" value="Level3"/>
                 <Setting id="SlaveIntEnable" value="Enable"/>
             </Segment>
-        </Segment>
-        <Segment component="r_bsp1.70" id="r_bsp" source="com.renesas.smc.tools.swcomponent.rl78.sis.source">
-            <Setting id="BSP_CFG_PARAM_CHECKING_ENABLE" value="1"/>
-            <Setting id="BSP_CFG_USER_WARM_START_PRE_C_FUNCTION" value="my_sw_warmstart_prec_function"/>
-            <Setting id="BSP_CFG_CLOCK_OPERATION_API_FUNCTIONS_DISABLE" value="1"/>
-            <Setting id="BSP_CFG_SET_CLOCK_SOURCE_API_FUNCTIONS_DISABLE" value="1"/>
-            <Setting id="BSP_CFG_WDT_REFRESH_ENABLE" value="0"/>
-            <Setting id="BSP_CFG_GET_FREQ_API_FUNCTIONS_DISABLE" value="0"/>
-            <Setting id="BSP_CFG_USER_WDT_REFRESH_INIT_FUNCTION" value="my_sw_wdt_refresh_init_function"/>
-            <Setting id="BSP_CFG_INVALID_MEMORY_ACCESS_DETECTION_ENABLE" value="0"/>
-            <Setting id="BSP_CFG_USER_WARM_START_CALLBACK_PRE_INITC_ENABLED" value="0"/>
-            <Setting id="BSP_CFG_SOFTWARE_DELAY_API_FUNCTIONS_DISABLE" value="1"/>
-            <Setting id="BSP_CFG_USER_WDT_REFRESH_SETTING_FUNCTION" value="my_sw_wdt_refresh_setting_function"/>
-            <Setting id="BSP_CFG_CHIP_STATE_CTRL_GUARD" value="0"/>
-            <Setting id="BSP_CFG_CHANGE_CLOCK_SETTING_API_FUNCTIONS_DISABLE" value="1"/>
-            <Setting id="BSP_CFG_DATA_FLASH_ACCESS_ENABLE" value="0"/>
-            <Setting id="BSP_CFG_STARTUP_DISABLE" value="0"/>
-            <Setting id="BSP_CFG_PORT_FUNCTION_GUARD" value="0"/>
-            <Setting id="BSP_CFG_USER_WARM_START_POST_C_FUNCTION" value="my_sw_warmstart_postc_function"/>
-            <Setting id="BSP_CFG_CONFIGURATOR_SELECT" value="1"/>
-            <Setting id="BSP_CFG_USER_WARM_START_CALLBACK_POST_INITC_ENABLED" value="0"/>
-            <Setting id="BSP_CFG_RAM_GUARD_FUNC" value="0"/>
-            <Setting id="BSP_CFG_INT_FUNCTION_GUARD" value="0"/>
         </Segment>
         <Segment component="com.renesas.smc.tools.swcomponent.codegenerator.rl78.csi" id="Config_CSI20" source="com.renesas.smc.tools.swcomponent.codegenerator.source">
             <Setting id="TransEnd" value="Disable"/>
@@ -211,6 +190,29 @@
             <Setting id="txPriority" value="Level3"/>
             <Setting id="txCallback" value="enable"/>
             <Setting id="dataLevelSetting" value="normal"/>
+        </Segment>
+        <Segment component="r_bsp1.70" id="r_bsp" source="com.renesas.smc.tools.swcomponent.rl78.sis.source">
+            <Setting id="BSP_CFG_PARAM_CHECKING_ENABLE" value="1"/>
+            <Setting id="BSP_CFG_USER_WARM_START_PRE_C_FUNCTION" value="my_sw_warmstart_prec_function"/>
+            <Setting id="BSP_CFG_CLOCK_OPERATION_API_FUNCTIONS_DISABLE" value="1"/>
+            <Setting id="BSP_CFG_SET_CLOCK_SOURCE_API_FUNCTIONS_DISABLE" value="1"/>
+            <Setting id="BSP_CFG_WDT_REFRESH_ENABLE" value="0"/>
+            <Setting id="BSP_CFG_GET_FREQ_API_FUNCTIONS_DISABLE" value="0"/>
+            <Setting id="BSP_CFG_USER_WDT_REFRESH_INIT_FUNCTION" value="my_sw_wdt_refresh_init_function"/>
+            <Setting id="BSP_CFG_INVALID_MEMORY_ACCESS_DETECTION_ENABLE" value="0"/>
+            <Setting id="BSP_CFG_USER_WARM_START_CALLBACK_PRE_INITC_ENABLED" value="0"/>
+            <Setting id="BSP_CFG_SOFTWARE_DELAY_API_FUNCTIONS_DISABLE" value="1"/>
+            <Setting id="BSP_CFG_USER_WDT_REFRESH_SETTING_FUNCTION" value="my_sw_wdt_refresh_setting_function"/>
+            <Setting id="BSP_CFG_CHIP_STATE_CTRL_GUARD" value="0"/>
+            <Setting id="BSP_CFG_CHANGE_CLOCK_SETTING_API_FUNCTIONS_DISABLE" value="1"/>
+            <Setting id="BSP_CFG_DATA_FLASH_ACCESS_ENABLE" value="0"/>
+            <Setting id="BSP_CFG_STARTUP_DISABLE" value="0"/>
+            <Setting id="BSP_CFG_PORT_FUNCTION_GUARD" value="0"/>
+            <Setting id="BSP_CFG_USER_WARM_START_POST_C_FUNCTION" value="my_sw_warmstart_postc_function"/>
+            <Setting id="BSP_CFG_CONFIGURATOR_SELECT" value="1"/>
+            <Setting id="BSP_CFG_USER_WARM_START_CALLBACK_POST_INITC_ENABLED" value="0"/>
+            <Setting id="BSP_CFG_RAM_GUARD_FUNC" value="0"/>
+            <Setting id="BSP_CFG_INT_FUNCTION_GUARD" value="0"/>
         </Segment>
         <Segment component="com.renesas.smc.tools.swcomponent.codegenerator.rl78.rtc" id="Config_RTC" source="com.renesas.smc.tools.swcomponent.codegenerator.source">
             <Setting id="alarminit" value="uncheck"/>
@@ -550,5 +552,7 @@
             <Setting id="OperationClock0" value="fSXP"/>
             <Setting id="ITLInterruptEnable" value="enable"/>
         </Segment>
+        <Segment component="r_rfd_rl78_t01_dataflash1.20" id="r_rfd_rl78_t01_dataflash" source="com.renesas.smc.tools.swcomponent.generic.source"/>
+        <Segment component="r_rfd_rl78_t01_common1.20" id="r_rfd_rl78_t01_common" source="com.renesas.smc.tools.swcomponent.generic.source"/>
     </Segment>
 </QE>

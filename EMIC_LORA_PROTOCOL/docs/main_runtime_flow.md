@@ -45,8 +45,7 @@ sequenceDiagram
   participant MAIN as main()
   participant APP as app_init()
   participant HAL as HAL/SMC init
-  participant RADIO as radio_init()
-  participant LINK as lora_link_init()
+  participant STACK as lora_stack_init()
 
   MAIN->>HAL: EI() enable interrupts
   MAIN->>APP: app_init()
@@ -57,8 +56,7 @@ sequenceDiagram
   APP->>APP: battery_init() (MVP: may return 0mV if not wired yet)
   APP->>APP: heartbeat_service_init() / power_service_init()
   APP->>APP: nv_store_init()
-  APP->>RADIO: radio_init() (sx1262_init)
-  APP->>LINK: lora_link_init()
+  APP->>STACK: lora_stack_init()
 ```
 
 ---
@@ -70,7 +68,7 @@ Vòng lặp nằm trong `app_run_forever()`:
 ```mermaid
 flowchart TD
   L0(["loop forever"]) --> TICK["Poll RTC tick in main"]
-  TICK --> FSM["State machines: button_run() / lora_link_run() / alarm_service_run()"]
+  TICK --> FSM["State machines: button_run() / lora_stack_run() / alarm_service_run()"]
   FSM --> COLLECT["app_collect_and_post_events()"]
   COLLECT --> COLLECT_BTN["Poll button gestures (for loop)"]
   COLLECT_BTN --> COLLECT_LINK["Poll link events (for loop)"]
@@ -85,7 +83,7 @@ flowchart TD
 1. **Poll RTC tick** (`app_on_rtc_tick_poll()`): kiểm tra RTCIF flag.
 2. **Run state machines**: update internal FSM states (không emit event ra ngoài):
    - `button_run()`: gesture recognition FSM (IDLE/PRESSED/WAIT_SECOND)
-   - `lora_link_run()`: CAD/RX/TX FSM (IDLE/WAIT_CAD/WAIT_RX/WAIT_TX)
+  - `lora_stack_run()`: CAD/RX/TX FSM (IDLE/WAIT_CAD/WAIT_RX/WAIT_TX)
    - `alarm_service_run()`: buzzer pattern FSM
 3. **Collect and post all events** (`app_collect_and_post_events()`):
   - Button gestures: loop poll → CLICK_1..CLICK_4, HOLD_1S/3S/5S
@@ -201,27 +199,30 @@ flowchart TD
 
 ### 3.1 CAD paging theo cấu hình (APP_CAD_SCAN_PERIOD_MS)
 
-**Note:** Khi Join Mode đang bật, `lora_link` sẽ **tạm dừng CAD paging** để không tranh lịch radio với chu kỳ JoinRequest/RX.
+**Note:** Khi Join Mode đang bật, stack sẽ **tạm dừng CAD paging** để không tranh lịch radio với chu kỳ JoinRequest/RX.
 
 ```mermaid
 sequenceDiagram
   participant RTC as RTC tick 0.5s
   participant APP as app_main
-  participant LINK as lora_link
-  participant RADIO as radio_if
-  participant SX as sx1262
+  participant STACK as lora_stack
+  participant LINK as lora_link (internal)
+  participant RADIO as radio_if (internal)
+  participant SX as sx1262 (internal)
 
   RTC-->>APP: tick observed in main
-  APP->>LINK: lora_link_on_rtc_halfsec_tick()
-  APP->>LINK: lora_link_run()
+  APP->>STACK: lora_stack_on_rtc_halfsec_tick()
+  APP->>STACK: lora_stack_run()
+  STACK->>LINK: lora_link_run() (internal)
   LINK->>RADIO: radio_request_cad(APP_CAD_SYMBOLS)
   RADIO->>SX: sx1262_start_cad()
 
   Note over SX,RADIO: DIO1 IRQ arrives (CAD_DONE / CAD_DETECTED)
-  APP->>LINK: lora_link_run()
+  APP->>STACK: lora_stack_run()
+  STACK->>LINK: lora_link_run() (internal)
   LINK->>RADIO: radio_poll_event()
   RADIO-->>LINK: RADIO_EVENT_CAD_DONE
-  LINK-->>APP: (no alarm)
+  STACK-->>APP: (no alarm)
 ```
 
 ### 3.2 Heartbeat mỗi ~240s ± jitter
@@ -229,17 +230,17 @@ sequenceDiagram
 ```mermaid
 sequenceDiagram
   participant RTC as RTC tick 0.5s
-  participant LINK as lora_link
+  participant STACK as lora_stack
   participant APP as app_main
   participant HB as heartbeat_service
 
   RTC-->>APP: tick observed
-  APP->>LINK: lora_link_run()
-  LINK-->>APP: LORA_LINK_EVENT_HEARTBEAT_DUE
+  APP->>STACK: lora_stack_run()
+  STACK-->>APP: LORA_STACK_EVENT_HEARTBEAT_DUE
   APP->>HB: heartbeat_service_send()
-  HB->>LINK: lora_link_send_heartbeat()
-  APP->>LINK: lora_link_run() (later)
-  LINK->>LINK: build frame + request TX
+  HB->>STACK: lora_stack_send_heartbeat()
+  APP->>STACK: lora_stack_run() (later)
+  STACK->>STACK: build frame + request TX
 ```
 
 ---
@@ -276,12 +277,14 @@ Node sẽ set RTC theo giá trị `time_rtc` khi nhận được các frame hợ
 
 ```mermaid
 sequenceDiagram
-  participant LINK as lora_link
-  participant RADIO as radio_if
-  participant SX as sx1262
+  participant STACK as lora_stack
+  participant LINK as lora_link (internal)
+  participant RADIO as radio_if (internal)
+  participant SX as sx1262 (internal)
   participant PROTO as emic_lora_protocol
   participant HAL as hal_rtc
 
+  STACK->>LINK: run/poll internal loop
   LINK->>RADIO: radio_request_cad()
   Note over SX,RADIO: DIO1 IRQ CAD_DETECTED
   LINK->>RADIO: radio_poll_event()
@@ -334,13 +337,15 @@ flowchart TD
 
 ```mermaid
 sequenceDiagram
-  participant LINK as lora_link
-  participant RADIO as radio_if
-  participant SX as sx1262
+  participant STACK as lora_stack
+  participant LINK as lora_link (internal)
+  participant RADIO as radio_if (internal)
+  participant SX as sx1262 (internal)
   participant PROTO as emic_lora_protocol
   participant APP as app_main
   participant ALARM as alarm_service
 
+  STACK->>LINK: run/poll internal loop
   LINK->>RADIO: radio_request_cad()
   Note over SX,RADIO: DIO1 IRQ CAD_DETECTED
   LINK->>RADIO: radio_poll_event()
@@ -352,7 +357,8 @@ sequenceDiagram
   LINK->>RADIO: radio_read_rx_payload()
   LINK->>PROTO: parse + verify CRC16 + decrypt (AES-ECB)
   PROTO-->>LINK: ALARM_BCAST + alarm_id
-  LINK-->>APP: push event REMOTE_ALARM
+  LINK-->>STACK: push event REMOTE_ALARM
+  STACK-->>APP: lora_stack_poll_event() => REMOTE_ALARM
   APP->>ALARM: alarm_service_set_remote_alarm(1)
   Note over APP: alarm_service drives buzzer using a standard cadence (Temporal-3)
   LINK->>LINK: schedule ALARM_SEEN uplink with random backoff
@@ -370,7 +376,7 @@ sequenceDiagram
   participant APP as app_main
   participant FSM as device_fsm
   participant ALARM as alarm_service
-  participant LINK as lora_link
+  participant STACK as lora_stack
 
   Note over SMOKE,APP: Smoke 0→1 transition
   APP->>SMOKE: smoke_service_poll_event()
@@ -378,8 +384,8 @@ sequenceDiagram
   APP->>FSM: device_fsm_post_event(DEVICE_EVENT_SMOKE_DETECTED)
   APP->>FSM: device_fsm_run()
   FSM->>ALARM: alarm_service_set_local_alarm(1)
-  FSM->>LINK: lora_link_notify_local_alarm()
-  Note over LINK: next lora_link_run() will TX ALARM_EVENT uplink
+  FSM->>STACK: lora_stack_notify_local_alarm()
+  Note over STACK: next lora_stack_run() will TX ALARM_EVENT uplink
 
   Note over SMOKE,APP: Smoke 1→0 transition (fire extinguished)
   APP->>SMOKE: smoke_service_poll_event()
@@ -440,7 +446,7 @@ sequenceDiagram
   participant APP as app_main
   participant FSM as device_fsm
   participant ALARM as alarm_service
-  participant LINK as lora_link
+  participant STACK as lora_stack
 
   APP->>BTN: button_run()
   BTN-->>APP: BUTTON_EVENT_HOLD_1S (gesture, no meaning)
@@ -448,7 +454,7 @@ sequenceDiagram
   APP->>FSM: device_fsm_post_event(DEVICE_EVENT_BTN_TEST)
   APP->>FSM: device_fsm_run()
   FSM->>ALARM: alarm_service_set_local_alarm(1) - map to SMOKE_TEST action
-  FSM->>LINK: lora_link_notify_local_alarm()
+  FSM->>STACK: lora_stack_notify_local_alarm()
 ```
 
 ---
@@ -502,9 +508,9 @@ flowchart TD
   Q1 -- yes --> HALT["HALT()<br/>(PWM buzzer continues)"]
   Q1 -- no --> QB{button busy?}
   QB -- yes --> HALTB["HALT()<br/>(keep 1ms tick for button)"]
-  QB -- no --> Q2{radio_is_busy?}
+  QB -- no --> Q2{lora_stack_is_busy?}
   Q2 -- yes --> HALT2["HALT()<br/>(wait IRQ safely)"]
-  Q2 -- no --> RS["radio_sleep_if_idle()<br/>(SX1262 SetSleep warm-start)"]
+  Q2 -- no --> RS["lora_stack_sleep_if_idle()<br/>(internal: SX1262 SetSleep warm-start)"]
   RS --> STOP["STOP()<br/>(max power save)"]
 ```
 
@@ -520,6 +526,6 @@ Ghi chú:
 
 - Entry: `src/EMIC_LORA_PROTOCOL.c` → `app_init()` → `app_run_forever()`
 - Tick/timebase: `hal_rtc` + `app_on_rtc_tick_poll()`
-- State machine chính: `lora_link_run()`
-- ISR tối thiểu: `sx126x_dio1_irq_handler()` + RTC ISR hook
+- State machine chính (public boundary): `lora_stack_run()`
+- ISR tối thiểu (public boundary): `lora_stack_on_dio1_irq()` + RTC ISR hook
 - Output alarm: `alarm_service` → `buzzer`/`led`

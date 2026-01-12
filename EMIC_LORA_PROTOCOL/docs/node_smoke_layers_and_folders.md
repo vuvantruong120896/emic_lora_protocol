@@ -12,7 +12,7 @@ Workspace hiện có 3 khối chính:
 
 Nhận xét:
 
-- `src/user/` hiện chính là “source of truth” cho toàn bộ stack (SX1262 + CAD paging + protocol/crypto + services).
+- `src/user/` hiện chính là “source of truth” cho toàn bộ stack; về boundary: **app/services chỉ gọi `lora_stack` (facade public)**, còn `lora_link`/`radio_if`/`sx1262` là **internal detail**.
 - Việc tách `smc_gen/` và `user/` giúp tránh sửa nhầm file generated, đồng thời build system rõ ràng hơn.
 
 ### 1.2 `HardwareDebug/` (khả năng cao là build output)
@@ -62,21 +62,23 @@ Kết quả mong muốn:
 
 2) **HAL (platform abstraction mỏng)**
 
-- Chứa: `src/hal/**`
+- Chứa: `src/user/hal/**`
 - Vai trò: GPIO/SPI/UART/RTC/timer/systick + primitive sleep/irq.
 - Quy tắc: HAL không biết “LoRa/Smoke/Protocol”.
 
 3) **Drivers (device/board driver)**
 
-- Đề xuất tạo: `src/drv/**`
+- Đề xuất tạo: `src/user/drv/**`
 - Ví dụ:
   - `drv/buzzer/` (pattern output nếu có)
   - `drv/smoke_sensor/` (ADC sampling, heater control nếu có)
-  - `drv/sx1262_board/` (reset/busy/dio1 pins, spi glue)
+  - `drv/sx1262_board/` (internal detail: reset/busy/dio1 pins, spi glue behind `lora_stack`)
 
 4) **Radio (SX1262 + LoRa modem control)**
 
-- Đề xuất tạo: `src/radio/**`
+Ghi chú: đây là **internal detail** phía sau facade `lora_stack` (app/services không gọi trực tiếp).
+
+- Đề xuất tạo: `src/user/radio/**`
 - Chứa:
   - Semtech sx126x core driver (pure C)
   - board glue (dùng HAL SPI/GPIO)
@@ -84,7 +86,7 @@ Kết quả mong muốn:
 
 5) **Link/MAC/Protocol (private, application-agnostic)**
 
-- Đề xuất tạo: `src/link/**` hoặc `src/protocol/**`
+- Đề xuất tạo: `src/user/link/**` hoặc `src/user/protocol/**`
 - Chứa:
   - frame encode/decode, AES-CCM wrapper
   - FCnt/replay
@@ -122,8 +124,9 @@ Kết quả mong muốn:
 - `src/user/hal/**` → Layer 2 (HAL)
 - `src/user/utils/**` → Utils/common
 - `src/user/drv/**` → Layer 3 (Drivers)
-- `src/user/radio/**` → Layer 4 (Radio)
-- `src/user/link/**` + `src/user/protocol/**` → Layer 5 (Link/Protocol)
+- `src/user/radio/**` → Layer 4 (Radio, internal)
+- `src/user/link/**` + `src/user/protocol/**` → Layer 5 (Link/Protocol, internal detail behind facade)
+- `src/user/link/lora_stack.*` → Facade API cho upper layers (app/services chỉ include facade)
 - `src/user/services/**` → Layer 6 (Services)
 - `src/user/app/**` → Layer 7 (Application)
 - `src/main.c` → entrypoint gọi `app_init()`/`app_run_forever()`
@@ -147,7 +150,8 @@ src/
     heartbeat_service.c/h
 
   link/
-    lora_link.c/h
+    lora_stack.c/h
+    lora_link.c/h (internal)
     frame_codec.c/h
     crypto_ccm.c/h
     cad_paging.c/h
@@ -155,8 +159,8 @@ src/
   radio/
     sx126x/
       sx126x.c/h
-    sx1262_board.c/h
-    radio_if.c/h
+    sx1262_board.c/h (internal)
+    radio_if.c/h (internal)
 
   drv/
     smoke_sensor/

@@ -1,9 +1,22 @@
+/**
+ * @file power_service.c
+ * @brief Power mode management service implementation.
+ * @details Implements intelligent power mode selection logic based on system state:
+ *   - Alarm active: use HALT (need buzzer PWM)
+ *   - Radio busy + APP_STOP_DURING_RADIO=0: use HALT (responsive to DIO1)
+ *   - Button busy: use HALT (need debounce timing)
+ *   - Idle: use STOP (maximize power saving) + put SX1262 into sleep
+ * @author EMIC Team
+ * @version 1.0.0
+ * @date 2026-01-11
+ */
+
 #include "power_service.h"
 
 #include "r_smc_entry.h"
 
 #include "alarm_service.h"
-#include "../radio/radio_if.h"
+#include "../link/lora_stack.h"
 
 #include "../drv/button/button.h"
 
@@ -15,13 +28,23 @@
 
 #include "../utils/log_control.h"
 
+/**
+ * @brief Allow STOP mode during radio CAD/RX/TX operations.
+ * @details 0 (default): use HALT during radio ops (wait for DIO1 in ISR quickly)
+ *          1: allow STOP and rely on DIO1 (INTP0) to wake MCU from STOP
+ *          Default is safer for responsiveness but uses more power.
+ */
 #ifndef APP_STOP_DURING_RADIO
 #define APP_STOP_DURING_RADIO (0)
 #endif
 
-
+/**
+ * @brief Initialize power service.
+ * @details Currently a no-op (all state managed by HAL and other services).
+ */
 void power_service_init(void)
 {
+    /* No-op: power mode selection is state-based, not initialized. */
 }
 
 void power_service_idle(void)
@@ -38,7 +61,7 @@ void power_service_idle(void)
     {
         HALT();
     }
-    else if ((radio_is_busy() != 0U) && (APP_STOP_DURING_RADIO == 0))
+    else if ((lora_stack_is_busy() != 0U) && (APP_STOP_DURING_RADIO == 0))
     {
         HALT();
     }
@@ -52,7 +75,7 @@ void power_service_idle(void)
         /* When fully idle and about to STOP, also put SX1262 into sleep to minimize radio current.
          * Next CAD/RX/TX request will wake it up automatically.
          */
-        radio_sleep_if_idle();
+        lora_stack_sleep_if_idle();
         STOP();
     }
 }

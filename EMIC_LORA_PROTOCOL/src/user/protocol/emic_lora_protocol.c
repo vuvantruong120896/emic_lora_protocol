@@ -1,3 +1,15 @@
+/**
+ * @file emic_lora_protocol.c
+ * @brief Implementation of LoRa frame building and parsing.
+ *
+ * @details
+ * Provides frame encoding/decoding with AES encryption and CRC-16 integrity check.
+ *
+ * @author EMIC Project
+ * @version 1.0.0
+ * @date 2026-01-09
+ */
+
 #include "emic_lora_protocol.h"
 
 #include <string.h>
@@ -6,6 +18,18 @@
 #include "emic_lora_crc16_modbus.h"
 #include "emic_lora_crypto.h"
 
+/**
+ * @brief Retrieve standard payload and extend field lengths for a command.
+ *
+ * @param cmd Command type
+ * @param payload_plain_len[out] Plaintext payload length (before padding)
+ * @param extend_len[out] Extend field length (plaintext)
+ *
+ * @return 1 if cmd is recognized, 0 otherwise
+ *
+ * @note Lengths are fixed per command per the official EMIC protocol spec;
+ *       no length field exists in the frame itself.
+ */
 static uint8_t get_cmd_lengths(uint8_t cmd, uint8_t *payload_plain_len, uint8_t *extend_len)
 {
     /* Payload plaintext lengths (before padding). Extend is plaintext.
@@ -43,6 +67,7 @@ static uint8_t get_cmd_lengths(uint8_t cmd, uint8_t *payload_plain_len, uint8_t 
         case EMIC_LORA_CMD_ALARM_STOP:
         case EMIC_LORA_CMD_SILENCE:
         case EMIC_LORA_CMD_EXIT:
+        case EMIC_LORA_CMD_EXIT_GW:
         case EMIC_LORA_CMD_TEST_ED:
             *payload_plain_len = 16U;
             *extend_len = 0U;

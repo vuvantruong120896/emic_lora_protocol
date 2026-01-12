@@ -78,6 +78,7 @@ void buzzer_set_pattern(buzzer_pattern_t pattern)
     if (pattern == BUZZER_PATTERN_OFF)
     {
         buzzer_apply(0U, 0U);
+        hal_timer_deinit();
         hal_systick_stop();
         return;
     }
@@ -142,11 +143,47 @@ void buzzer_run(void)
             break;
         }
 
+        case BUZZER_PATTERN_ONOFF_0P5S:
+        {
+            /* 500ms ON, 500ms OFF (cycle=1000ms) */
+            uint32_t m = t % 1000UL;
+            if (m < 500UL)
+            {
+                enabled = 1U;
+                duty = 70U;
+            }
+            break;
+        }
+
         case BUZZER_PATTERN_CHIRP:
         {
             /* 60ms ON, 1940ms OFF (cycle=2000ms) */
             uint32_t m = t % 2000UL;
             if (m < 60UL)
+            {
+                enabled = 1U;
+                duty = 70U;
+            }
+            break;
+        }
+
+        case BUZZER_PATTERN_LOW_BATT_CHIRP_30S:
+        {
+            /* 60ms ON, 29940ms OFF (cycle=30000ms) */
+            uint32_t m = t % 30000UL;
+            if (m < 60UL)
+            {
+                enabled = 1U;
+                duty = 70U;
+            }
+            break;
+        }
+
+        case BUZZER_PATTERN_FAULT_BEEP:
+        {
+            /* 100ms ON, 100ms OFF, 100ms ON, 4700ms OFF (cycle=5000ms) */
+            uint32_t m = t % 5000UL;
+            if ((m < 100UL) || ((m >= 200UL) && (m < 300UL)))
             {
                 enabled = 1U;
                 duty = 70U;

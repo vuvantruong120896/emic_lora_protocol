@@ -1,111 +1,145 @@
 {
-  "version": "2.0.0",
-  "tasks": [
-    {
-      "label": "Build (CCRL / HardwareDebug via makefile)",
-      "type": "shell",
-      "command": "powershell",
-      "args": [
-        "-NoProfile",
-        "-ExecutionPolicy",
-        "Bypass",
-        "-File",
-        "${workspaceFolder}\\scripts\\build-ccrl-make.ps1",
-        "-Config",
-        "HardwareDebug",
-        "-Target",
-        "all"
-      ],
-      "group": { "kind": "build", "isDefault": false },
-      "problemMatcher": "$gcc",
-      "options": {
-        "cwd": "${workspaceFolder}"
-      }
-    },
-    {
-      "label": "Clean (CCRL / HardwareDebug via makefile)",
-      "type": "shell",
-      "command": "powershell",
-      "args": [
-        "-NoProfile",
-        "-ExecutionPolicy",
-        "Bypass",
-        "-File",
-        "${workspaceFolder}\\scripts\\build-ccrl-make.ps1",
-        "-Config",
-        "HardwareDebug",
-        "-Target",
-        "clean"
-      ],
-      "problemMatcher": "$gcc",
-      "options": {
-        "cwd": "${workspaceFolder}"
-      }
-    },
-    {
-      "label": "Rebuild (CCRL / HardwareDebug via makefile)",
-      "type": "shell",
-      "command": "powershell",
-      "args": [
-        "-NoProfile",
-        "-ExecutionPolicy",
-        "Bypass",
-        "-File",
-        "${workspaceFolder}\\scripts\\build-ccrl-make.ps1",
-        "-Config",
-        "HardwareDebug",
-        "-Target",
-        "clean",
-        "-Then",
-        "all"
-      ],
-      "group": { "kind": "build", "isDefault": true },
-      "problemMatcher": "$gcc",
-      "options": {
-        "cwd": "${workspaceFolder}"
-      }
-    },
-
-    {
-      "label": "Build (e2studio headless / HardwareDebug)",
-      "type": "shell",
-      "command": "powershell",
-      "args": [
-        "-NoProfile",
-        "-ExecutionPolicy",
-        "Bypass",
-        "-File",
-        "${workspaceFolder}\\scripts\\build-e2studio-headless.ps1",
-        "-ProjectName",
-        "EMIC_LORA_PROTOCOL",
-        "-Config",
-        "HardwareDebug"
-      ],
-      "problemMatcher": "$gcc",
-      "options": {
-        "cwd": "${workspaceFolder}"
-      }
-    },
-    {
-      "label": "Clean (e2studio headless / HardwareDebug)",
-      "type": "shell",
-      "command": "powershell",
-      "args": [
-        "-NoProfile",
-        "-ExecutionPolicy",
-        "Bypass",
-        "-File",
-        "${workspaceFolder}\\scripts\\build-e2studio-headless.ps1",
-        "-ProjectName",
-        "EMIC_LORA_PROTOCOL",
-        "-Config",
-        "HardwareDebug",
-        "-Clean"
-      ],
-      "problemMatcher": "$gcc",
-      "options": {
-        "cwd": "${workspaceFolder}"
-      }
-    }
-  ]
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "Build (CCRL / HardwareDebug via makefile)",
+			"type": "shell",
+			"command": "powershell",
+			"args": [
+				"-NoProfile",
+				"-ExecutionPolicy",
+				"Bypass",
+				"-File",
+				"${workspaceFolder}\\scripts\\build-ccrl-make.ps1",
+				"-Config",
+				"HardwareDebug",
+				"-Target",
+				"all"
+			],
+			"group": {
+				"kind": "build",
+				"isDefault": false
+			},
+			"problemMatcher": "$gcc",
+			"options": {
+				"cwd": "${workspaceFolder}"
+			}
+		},
+		{
+			"label": "Clean (CCRL / HardwareDebug via makefile)",
+			"type": "shell",
+			"command": "powershell",
+			"args": [
+				"-NoProfile",
+				"-ExecutionPolicy",
+				"Bypass",
+				"-File",
+				"${workspaceFolder}\\scripts\\build-ccrl-make.ps1",
+				"-Config",
+				"HardwareDebug",
+				"-Target",
+				"clean"
+			],
+			"problemMatcher": "$gcc",
+			"options": {
+				"cwd": "${workspaceFolder}"
+			}
+		},
+		{
+			"label": "Rebuild (CCRL / HardwareDebug via makefile)",
+			"type": "shell",
+			"command": "powershell",
+			"args": [
+				"-NoProfile",
+				"-ExecutionPolicy",
+				"Bypass",
+				"-File",
+				"${workspaceFolder}\\scripts\\build-ccrl-make.ps1",
+				"-Config",
+				"HardwareDebug",
+				"-Target",
+				"clean",
+				"-Then",
+				"all"
+			],
+			"group": {
+				"kind": "build",
+				"isDefault": true
+			},
+			"problemMatcher": "$gcc",
+			"options": {
+				"cwd": "${workspaceFolder}"
+			}
+		},
+		{
+			"label": "Build (e2studio headless / HardwareDebug)",
+			"type": "shell",
+			"command": "powershell",
+			"args": [
+				"-NoProfile",
+				"-ExecutionPolicy",
+				"Bypass",
+				"-File",
+				"${workspaceFolder}\\scripts\\build-e2studio-headless.ps1",
+				"-ProjectName",
+				"EMIC_LORA_PROTOCOL",
+				"-Config",
+				"HardwareDebug"
+			],
+			"problemMatcher": "$gcc",
+			"options": {
+				"cwd": "${workspaceFolder}"
+			}
+		},
+		{
+			"label": "Clean (e2studio headless / HardwareDebug)",
+			"type": "shell",
+			"command": "powershell",
+			"args": [
+				"-NoProfile",
+				"-ExecutionPolicy",
+				"Bypass",
+				"-File",
+				"${workspaceFolder}\\scripts\\build-e2studio-headless.ps1",
+				"-ProjectName",
+				"EMIC_LORA_PROTOCOL",
+				"-Config",
+				"HardwareDebug",
+				"-Clean"
+			],
+			"problemMatcher": "$gcc",
+			"options": {
+				"cwd": "${workspaceFolder}"
+			}
+		},
+		{
+			"label": "Extract AFE XLSX preview",
+			"type": "shell",
+			"command": "D:/Projects/Emic/LoraSafe/Core/EMIC_LORA_PROTOCOL/.venv/Scripts/python.exe",
+			"args": [
+				"tools/extract_afe_xlsx.py"
+			],
+			"isBackground": false,
+			"problemMatcher": []
+		},
+		{
+			"label": "Flash (RFP / E2 Lite)",
+			"type": "shell",
+			"command": "powershell",
+			"args": [
+				"-NoProfile",
+				"-ExecutionPolicy",
+				"Bypass",
+				"-File",
+				"${workspaceFolder}\\scripts\\flash-rfp.ps1",
+				"-ImageFile",
+				"${workspaceFolder}\\HardwareDebug\\EMIC_LORA_PROTOCOL.mot"
+			],
+			"group": "build",
+			"problemMatcher": [],
+			"options": {
+				"cwd": "${workspaceFolder}"
+			}
+		}
+	]
 }

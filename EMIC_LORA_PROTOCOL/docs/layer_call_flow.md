@@ -22,7 +22,8 @@ flowchart TD
   end
 
   subgraph LINK[Layer 5: link]
-    L1["lora_link"]
+    L0["lora_stack (facade)"]
+    L1["lora_link (internal)"]
   end
 
   subgraph PROTO[Layer 4: protocol]
@@ -31,8 +32,8 @@ flowchart TD
   end
 
   subgraph RADIO[Layer 3a: radio]
-    R1["radio_if"]
-    R2["sx1262"]
+    R1["radio_if (internal)"]
+    R2["sx1262 (internal)"]
   end
 
   subgraph DRV[Layer 3b: drv]
@@ -61,14 +62,17 @@ flowchart TD
   A1 --> S2
   A1 --> S3
   A1 --> S4
-  A1 --> L1
+  A1 --> L0
 
-  S3 --> L1
+  S3 --> L0
   S1 --> D1
   S1 --> D2
   S2 --> D3
-  S4 --> R1
+  S4 --> L0
   S4 --> S1
+
+  L0 --> L1
+  L0 --> R1
 
   L1 --> R1
   L1 --> P1
@@ -101,7 +105,7 @@ flowchart TD
 | services | link, drv, hal       | app               |
 | link     | radio, protocol, drv | app, services     |
 | protocol | hal/utils (crypto)   | link              |
-| radio    | drv, hal             | services, link    |
+| radio    | drv, hal             | link (internal)   |
 | drv      | hal                  | services, radio   |
 | hal      | smc_gen              | (all)             |
 | smc_gen  | (hw registers)       | hal               |
@@ -120,31 +124,59 @@ Ghi chú:
 
 - `app_main.c`:
 
-  - Gọi `lora_link_run()` mỗi vòng lặp.
-  - Gọi `lora_link_poll_event()` để lấy event (HEARTBEAT_DUE / REMOTE_ALARM).
-  - Gọi `lora_link_notify_local_alarm()` khi smoke/local alarm.
-- `heartbeat_service_send()` chỉ là wrapper: gọi `lora_link_send_heartbeat()`.
+  - Mỗi vòng lặp: `button_run()` → `lora_stack_run()` → `alarm_service_run()`.
+  - Sau đó gom event từ button/link/smoke và **post vào `device_fsm`**.
+  - `device_fsm_run()` mới là nơi ra quyết định: cập nhật alarm state và gọi các trigger `lora_stack_*` tương ứng.
+- `heartbeat_service_send()` chỉ là wrapper: gọi `lora_stack_send_heartbeat()`.
+
+Các trigger từ `device_fsm` xuống stack (app-facing):
+
+- Local alarm ON: `lora_stack_notify_local_alarm()` (smoke detected / test-hold)
+- Local alarm OFF: `lora_stack_notify_local_alarm_cleared()` (smoke cleared / test release)
+
+Các event từ `lora_stack_poll_event()` (hiện tại):
+
+- `HEARTBEAT_DUE`
+- `REMOTE_ALARM`
+- `REMOTE_ALARM_STOP`
+- `REMOTE_SILENCE`
+- `GW_LOST`
+- `JOIN_ACCEPTED`
+- `ENTER_OPERATION`
+- `EXIT_GW`
+- `TEST_ED`
 
 ```mermaid
 sequenceDiagram
   participant APP as app_main
-  participant LINK as lora_link
+  participant STACK as lora_stack
   participant HB as heartbeat_service
   participant ALARM as alarm_service
+  participant FSM as device_fsm
 
   loop main loop
-    APP->>LINK: lora_link_run()
-    APP->>LINK: lora_link_poll_event()
-    alt HEARTBEAT_DUE
-      APP->>HB: heartbeat_service_send()
-      HB->>LINK: lora_link_send_heartbeat()
-    else REMOTE_ALARM
-      APP->>ALARM: alarm_service_set_remote_alarm(1)
+    APP->>STACK: lora_stack_run()
+    APP->>STACK: lora_stack_poll_event()
+    alt any STACK event
+      APP->>FSM: device_fsm_post_event(DEVICE_EVENT_LINK_*)
+      APP->>FSM: device_fsm_run()
+      alt HEARTBEAT_DUE
+        FSM->>HB: heartbeat_service_send()
+        HB->>STACK: lora_stack_send_heartbeat()
+      else REMOTE_ALARM / STOP / SILENCE
+        FSM->>ALARM: alarm_service_set_remote_alarm(...)
+      else JOIN_ACCEPTED / ENTER_OPERATION
+        FSM->>ALARM: alarm_service_start_join_success_for_s(6)
+      else TEST_ED
+        FSM->>ALARM: alarm_service_start_test_for_s(10)
+      end
     end
   end
 ```
 
 ### 2.2 Link ↔ Radio
+
+Ghi chú: phần này là **internal detail** phía sau facade `lora_stack`.
 
 - Link yêu cầu radio thực hiện:
 
@@ -157,8 +189,8 @@ sequenceDiagram
 
 ```mermaid
 sequenceDiagram
-  participant LINK as lora_link
-  participant RADIO as radio_if
+  participant LINK as lora_link (internal)
+  participant RADIO as radio_if (internal)
 
   Note over LINK: Periodic CAD schedule (every ~2s)
   LINK->>RADIO: radio_request_cad(APP_CAD_SYMBOLS)
@@ -182,9 +214,11 @@ sequenceDiagram
 
 ### 2.3 Radio ↔ SX1262 driver ↔ HAL
 
+Ghi chú: phần này là **internal detail** phía sau facade `lora_stack`.
+
 - `radio_if.c` giữ ISR "mỏng":
 
-  - ISR DIO1 gọi `sx126x_dio1_irq_handler()` chỉ set cờ `s_irq_pending`.
+  - ISR DIO1 gọi `lora_stack_on_dio1_irq()`; bên trong stack sẽ gọi `sx126x_dio1_irq_handler()` (internal) để set cờ `s_irq_pending`.
   - Main loop gọi `radio_poll_event()` → đọc IRQ qua SPI (`sx1262_get_irq_status()`) và map sang `radio_event_t`.
 - `sx1262.c` dùng:
 
@@ -195,12 +229,15 @@ sequenceDiagram
 ```mermaid
 sequenceDiagram
   participant ISR as INTC ISR (DIO1)
-  participant RADIO as radio_if
-  participant SX as sx1262
+  participant STACK as lora_stack
+  participant RADIO as radio_if (internal)
+  participant SX as sx1262 (internal)
   participant SPI as hal_spi
 
-  ISR->>RADIO: sx126x_dio1_irq_handler()
-  Note over RADIO: ISR only sets a pending flag
+  ISR->>STACK: lora_stack_on_dio1_irq()
+  Note over STACK: ISR hook only forwards into stack
+  STACK->>RADIO: sx126x_dio1_irq_handler() (internal)
+  Note over RADIO: sets a pending flag
 
   RADIO->>SX: sx1262_get_irq_status()
   SX->>SPI: SPI read IRQ status
@@ -252,7 +289,7 @@ sequenceDiagram
   participant ISR as RTC ISR (smc_gen)
   participant HAL as hal_rtc
   participant APP as app_main
-  participant LINK as lora_link
+  participant STACK as lora_stack
   participant ALARM as alarm_service
 
   ISR->>HAL: hal_rtc_increment_wakeup_counter()
@@ -261,8 +298,8 @@ sequenceDiagram
     APP->>HAL: hal_rtc_int_is_pending()?
     alt pending
       APP->>APP: app_on_rtc_tick_poll()
-      APP->>LINK: lora_link_on_rtc_halfsec_tick()
-      LINK-->>LINK: (set halfsec tick pending)
+      APP->>STACK: lora_stack_on_rtc_halfsec_tick()
+      STACK-->>STACK: (set halfsec tick pending)
       APP->>ALARM: alarm_service_on_tick_halfsec()
       ALARM-->>ALARM: (toggle beep phase)
     else not pending
@@ -276,11 +313,14 @@ sequenceDiagram
 ```mermaid
 sequenceDiagram
   participant ISR as DIO1 ISR (smc_gen)
-  participant RADIO as radio_if
-  participant SX as sx1262
+  participant STACK as lora_stack
+  participant RADIO as radio_if (internal)
+  participant SX as sx1262 (internal)
   participant SPI as hal_spi
 
-  ISR->>RADIO: sx126x_dio1_irq_handler()
+  ISR->>STACK: lora_stack_on_dio1_irq()
+  Note over STACK: ISR hook only forwards into stack
+  STACK->>RADIO: sx126x_dio1_irq_handler() (internal)
   RADIO-->>RADIO: s_irq_pending = 1
 
   loop super-loop polling
@@ -304,12 +344,22 @@ sequenceDiagram
 flowchart TD
   IDLE[power_service_idle] --> A{alarm_service_is_active?}
   A -- yes --> H1["HALT()<br/>(keep TAU PWM running)"]
-  A -- no --> B{radio_is_busy?}
-  B -- yes --> H2["HALT()<br/>(avoid relying on DIO1 wake in STOP)"]
-  B -- no --> RS["radio_sleep_if_idle()<br/>(SX1262 SetSleep warm-start)"]
+  A -- no --> B{lora_stack_is_busy && APP_STOP_DURING_RADIO==0?}
+  B -- yes --> H2["HALT()<br/>(service DIO1 immediately)"]
+  B -- no --> C{button_is_busy?}
+  C -- yes --> H3["HALT()<br/>(keep CPU timing for gestures)"]
+  C -- no --> RS["lora_stack_sleep_if_idle()<br/>(internal: SX1262 SetSleep warm-start)"]
   RS --> S["STOP()"]
 ```
 
 - `alarm_service_is_active()` được hiểu là **buzzer cần chạy pattern** (giữ clock/PWM). Một số status chỉ dùng LED (offline/low-batt) thì vẫn có thể STOP.
+- `APP_STOP_DURING_RADIO` là compile-time flag:
+
+  - `0` (mặc định): đang radio busy thì HALT.
+  - `1`: cho phép STOP khi radio busy và **trông chờ DIO1** đánh thức MCU.
 - SysTick ~1ms (ITL/FSXP) **không** là timebase chính; timebase chính vẫn là RTC tick 0.5s.
 - Trong phiên bản hiện tại, systick được bật theo nhu cầu (chủ yếu khi xử lý gesture/button và buzzer pattern), và sẽ được tắt khi idle để tiết kiệm năng lượng.
+
+Ghi chú cập nhật (encapsulation):
+
+- `power_service` không gọi trực tiếp `radio_if`; thay vào đó dùng `lora_stack_is_busy()` và `lora_stack_sleep_if_idle()`.

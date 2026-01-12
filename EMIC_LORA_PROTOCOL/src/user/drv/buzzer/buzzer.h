@@ -13,8 +13,14 @@ typedef enum
 	BUZZER_PATTERN_FIRE_TEMPORAL3_UL,
 	/* Two short beeps then pause (UI beep-beep). */
 	BUZZER_PATTERN_BEEP_BEEP,
+	/* 0.5s ON, 0.5s OFF (1Hz square wave). */
+	BUZZER_PATTERN_ONOFF_0P5S,
 	/* Single short chirp every 2s. */
 	BUZZER_PATTERN_CHIRP,
+	/* Single short chirp every 30s (typical low-battery reminder). */
+	BUZZER_PATTERN_LOW_BATT_CHIRP_30S,
+	/* Two short beeps then long pause (fault indication). */
+	BUZZER_PATTERN_FAULT_BEEP,
 	/* Amplitude ramp up/down (2kHz carrier; duty sweep). */
 	BUZZER_PATTERN_RAMP
 } buzzer_pattern_t;

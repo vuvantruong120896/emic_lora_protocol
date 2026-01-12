@@ -16,6 +16,8 @@
  * - Hold 5s  : HOLD_5S
  * - Double   : CLICK_2
  * - Single   : CLICK_1
+ * - Triple   : CLICK_3
+ * - Quad     : CLICK_4
  *
  * Notes:
  * - Button input is active-low (pull-up): released=HIGH, pressed=LOW.
@@ -44,6 +46,8 @@ static uint32_t s_raw_press_start_ms;
 static btn_state_t s_state;
 static uint32_t s_press_start_ms;
 static uint32_t s_first_click_release_ms;
+
+static uint8_t s_click_count;
 
 static button_event_t s_ev_queue;
 
@@ -117,6 +121,7 @@ void button_init(void)
     s_state = BTN_STATE_IDLE;
     s_press_start_ms = 0UL;
     s_first_click_release_ms = 0UL;
+    s_click_count = 0U;
     s_ev_queue = BUTTON_EVENT_NONE;
 
     s_systick_prepared = 1U;
@@ -180,32 +185,49 @@ void button_run(void)
                 /* Released edge */
                 uint32_t held_ms = now_ms - s_press_start_ms;
 
+                /* Holds */
                 if (held_ms >= HOLD_FACTORY_RESET_MS)
                 {
                     button_push_event(BUTTON_EVENT_HOLD_5S);
                     s_state = BTN_STATE_IDLE;
+                    s_click_count = 0U;
                 }
                 else if (held_ms >= HOLD_3S_MS)
                 {
                     button_push_event(BUTTON_EVENT_HOLD_3S);
                     s_state = BTN_STATE_IDLE;
+                    s_click_count = 0U;
                 }
                 else if (held_ms >= HOLD_SMOKE_TEST_MS)
                 {
                     button_push_event(BUTTON_EVENT_HOLD_1S);
                     s_state = BTN_STATE_IDLE;
+                    s_click_count = 0U;
                 }
                 else
                 {
-                    /* Short click */
-                    if (s_state == BTN_STATE_WAIT_SECOND)
+                    /* Short click: accumulate multi-click count.
+                     * Emit CLICK_N when window expires.
+                     */
+                    if (s_click_count == 0U)
                     {
-                        button_push_event(BUTTON_EVENT_CLICK_2);
+                        s_click_count = 1U;
+                        s_first_click_release_ms = now_ms;
+                    }
+                    else
+                    {
+                        s_click_count++;
+                    }
+
+                    if (s_click_count > 4U)
+                    {
+                        /* Unsupported -> reset. */
+                        s_click_count = 0U;
+                        s_first_click_release_ms = 0UL;
                         s_state = BTN_STATE_IDLE;
                     }
                     else
                     {
-                        s_first_click_release_ms = now_ms;
                         s_state = BTN_STATE_WAIT_SECOND;
                     }
                 }
@@ -213,13 +235,34 @@ void button_run(void)
         }
     }
 
-    /* Timeout waiting for second click -> confirm single click */
+    /* Timeout waiting for next click -> emit CLICK_N. */
     if (s_state == BTN_STATE_WAIT_SECOND)
     {
         if ((now_ms - s_first_click_release_ms) >= DOUBLE_CLICK_WINDOW_MS)
         {
-            button_push_event(BUTTON_EVENT_CLICK_1);
+            if (s_click_count == 1U)
+            {
+                button_push_event(BUTTON_EVENT_CLICK_1);
+            }
+            else if (s_click_count == 2U)
+            {
+                button_push_event(BUTTON_EVENT_CLICK_2);
+            }
+            else if (s_click_count == 3U)
+            {
+                button_push_event(BUTTON_EVENT_CLICK_3);
+            }
+            else if (s_click_count == 4U)
+            {
+                button_push_event(BUTTON_EVENT_CLICK_4);
+            }
+            else
+            {
+                /* ignore */
+            }
+
             s_state = BTN_STATE_IDLE;
+            s_click_count = 0U;
         }
     }
 

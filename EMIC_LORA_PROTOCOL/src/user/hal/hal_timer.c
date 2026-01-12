@@ -15,6 +15,7 @@
 #include "hal_timer.h"
 #include "../smc_gen/Config_TAU0_0/Config_TAU0_0.h"
 #include "../smc_gen/general/r_cg_tau.h"
+#include "../smc_gen/general/r_cg_tau_common.h"
 #include "../smc_gen/r_bsp/mcu/rl78_g23/register_access/ccrl/iodefine.h"
 
 /* ===================================================================
@@ -47,6 +48,9 @@ void hal_timer_init(void)
         return;  /* Already initialized */
     }
 
+    /* TAU0 clock may be powered off in low-power mode; ensure it is on before configuring. */
+    R_TAU0_Set_PowerOn();
+
     /* Call Smart Config initialization */
     R_Config_TAU0_0_Create();
 
@@ -69,6 +73,17 @@ void hal_timer_deinit(void)
 
     /* Stop TAU0 counter */
     R_Config_TAU0_0_Stop();
+
+    /* Stop clock supply to TAU0 for lowest power. */
+    R_TAU0_Set_PowerOff();
+
+    /* Ensure PWM output pin is not left in peripheral-output mode.
+     * SMC config uses TO03 on P3.1 and enables peripheral output via PFOE0 bit3 (0x08).
+     * Leaving it enabled can keep external buzzer circuitry biased and increase sleep current.
+     */
+    PFOE0 &= (uint8_t)~0x08U; /* disable TO03 peripheral output */
+    PM3 |= 0x02U;            /* P3.1 input (Hi-Z) */
+    P3 &= (uint8_t)~0x02U;   /* output latch low (defensive) */
 
     g_tau0_running = 0U;
     g_tau0_initialized = 0;

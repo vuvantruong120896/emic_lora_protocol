@@ -1,3 +1,17 @@
+/**
+ * @file emic_lora_protocol.h
+ * @brief LoRa frame build/parse and protocol definitions for EMIC node-to-GW communication.
+ *
+ * @details
+ * - Frame format: Header(1B) + Encrypted_Payload(0..48B) + Extend(0..16B) + CRC16(2B)
+ * - Encryption: AES-ECB with key derived from PanID
+ * - CRC: CRC-16/MODBUS over header+payload+extend
+ *
+ * @author EMIC Project
+ * @version 1.0.0
+ * @date 2026-01-09
+ */
+
 #ifndef EMIC_LORA_PROTOCOL_H
 #define EMIC_LORA_PROTOCOL_H
 
@@ -18,6 +32,7 @@ typedef enum
     EMIC_LORA_CMD_ACK               = 0x08,
     EMIC_LORA_CMD_HEARTBEAT         = 0x09,
     EMIC_LORA_CMD_EXIT              = 0x0B,
+    EMIC_LORA_CMD_EXIT_GW           = 0x0C,
     EMIC_LORA_CMD_TEST_ED           = 0x0D
 } emic_lora_cmd_t;
 
@@ -53,13 +68,23 @@ typedef struct
     uint8_t extend_len;
 } emic_lora_frame_t;
 
-/* Build a frame.
- * - pan_id: 6 bytes (big-endian as provided)
- * - payload_plain: plaintext payload per CMD (will be zero-padded to 16-byte blocks)
- * - extend: plaintext extend bytes (not encrypted)
- * - CRC16 appended MSB-first
+/**
+ * @brief Build a LoRa frame with encryption and CRC.
  *
- * Returns total frame length, or 0 on error.
+ * @param pan_id[6] PanID (6 bytes, used for key derivation)
+ * @param cmd Command type (see emic_lora_cmd_t)
+ * @param src_type Source type (see emic_lora_src_type_t)
+ * @param dst_type Destination type (see emic_lora_dst_type_t)
+ * @param payload_plain Plaintext payload buffer (will be zero-padded to 16-byte blocks)
+ * @param payload_plain_len Length of plaintext payload
+ * @param extend Plaintext extend field bytes (not encrypted)
+ * @param extend_len Length of extend field
+ * @param out Output frame buffer
+ * @param out_max Maximum output buffer size
+ *
+ * @return Frame length on success, 0 on error (invalid param, buffer overflow, etc.)
+ *
+ * @note CRC16 is appended MSB-first (big-endian)
  */
 uint8_t emic_lora_build_frame(const uint8_t pan_id[6],
                              uint8_t cmd,
@@ -72,8 +97,17 @@ uint8_t emic_lora_build_frame(const uint8_t pan_id[6],
                              uint8_t *out,
                              uint8_t out_max);
 
-/* Parse and decrypt a frame.
- * Returns 1 on success, 0 on failure.
+/**
+ * @brief Parse and decrypt a LoRa frame.
+ *
+ * @param pan_id[6] PanID (6 bytes, used for key derivation)
+ * @param in Input frame buffer
+ * @param in_len Input frame length
+ * @param out Parsed frame structure (decrypted payload and extend fields)
+ *
+ * @return 1 on success, 0 on error (invalid format, CRC mismatch, decrypt error, etc.)
+ *
+ * @note Payload is zero-padded to 16-byte boundary during encryption; use payload_plain_len to know actual length.
  */
 uint8_t emic_lora_parse_frame(const uint8_t pan_id[6],
                              const uint8_t *in,

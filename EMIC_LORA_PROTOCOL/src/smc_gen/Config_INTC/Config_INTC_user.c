@@ -44,7 +44,7 @@ Pragma directive
 Global variables and functions
 ***********************************************************************************************************************/
 /* Start user code for global. Do not edit comment generated here */
-extern void sx126x_dio1_irq_handler(void);
+extern void lora_stack_on_dio1_irq(void);
 /* End user code. Do not edit comment generated here */
 
 /***********************************************************************************************************************
@@ -68,7 +68,7 @@ void R_Config_INTC_Create_UserInit(void)
 static void __near r_Config_INTC_intp0_interrupt(void)
 {
     /* Start user code for r_Config_INTC_intp0_interrupt. Do not edit comment generated here */
-    sx126x_dio1_irq_handler();  /* Call SX1262 DIO1 handler */
+    lora_stack_on_dio1_irq();  /* Route SX1262 DIO1 IRQ via LoRa stack facade */
     
     /* CRITICAL: Clear MCU interrupt flag to allow next interrupt
      * Without this, MCU won't detect the next rising edge on DIO1

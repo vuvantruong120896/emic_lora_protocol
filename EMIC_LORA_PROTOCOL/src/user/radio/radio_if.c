@@ -1,3 +1,14 @@
+/**
+ * @file radio_if.c
+ * @brief Radio interface implementation for SX1262 LoRa transceiver abstraction.
+ * @details Implements non-blocking event-driven radio API with DIO1 IRQ handling
+ *          and radio sleep/wakeup management. Maintains channel configuration and
+ *          translates SX1262 IRQ status bits to high-level radio events for upper layers.
+ * @author EMIC Team
+ * @version 1.0.0
+ * @date 2026-01-11
+ */
+
 #include "radio_if.h"
 
 #include "sx1262.h"
@@ -6,10 +17,45 @@
 
 #include "../app/app_config.h"
 
+/** @brief Current radio event (updated by ISR and main-loop IRQ processing). */
 static volatile radio_event_t s_ev;
+/** @brief Flag indicating DIO1 ISR has fired and IRQs need processing in main loop. */
 static volatile uint8_t s_irq_pending;
+/** @brief Flag indicating a CAD/RX/TX operation is currently in-flight. */
 static volatile uint8_t s_busy;
 
+/** @brief Number of LoRa channels in AS923 region. */
+#define RADIO_CHANNEL_COUNT (9U)
+/** @brief LoRa channel frequencies for AS923 region (920-923 MHz, 300kHz spacing). */
+static const uint32_t s_channel_hz[RADIO_CHANNEL_COUNT] = {
+    920225000UL, /* CH0  Meeting Point */
+    920525000UL, /* CH1  */
+    920825000UL, /* CH2  */
+    921125000UL, /* CH3  */
+    921425000UL, /* CH4  */
+    921725000UL, /* CH5  */
+    922025000UL, /* CH6  */
+    922325000UL, /* CH7  */
+    922625000UL  /* CH8  */
+};
+
+/** @brief Current radio channel index (0-8). */
+/** @brief Current radio channel index (0-8). */
+static uint8_t s_channel_idx;
+
+/**
+ * @brief Process pending SX1262 IRQ status and translate to radio events.
+ * @details Reads IRQ status bits from SX1262, clears them, and translates to radio_event_t:
+ *   - CAD_DETECTED + CAD_DONE → RADIO_EVENT_CAD_DETECTED
+ *   - CAD_DONE only → RADIO_EVENT_CAD_DONE
+ *   - RX_DONE → RADIO_EVENT_RX_DONE (CRC/header errors become RADIO_EVENT_ERROR)
+ *   - TX_DONE → RADIO_EVENT_TX_DONE
+ *   - TIMEOUT → RADIO_EVENT_TIMEOUT
+ *   - Other IRQs → RADIO_EVENT_ERROR
+ * @details Robustness: When s_busy=1 (operation in-flight), also polls IRQ status
+ *          to avoid missing edges or getting stuck due to INTP0 masking issues.
+ * @note Called from radio_poll_event() in main loop context (never from ISR).
+ */
 static void radio_process_irq_if_needed(void)
 {
     uint16_t irq;
@@ -90,7 +136,37 @@ void radio_init(void)
     s_irq_pending = 0U;
     s_busy = 0U;
 
+    s_channel_idx = 0U;
+
     sx1262_init(&cfg);
+}
+
+uint8_t radio_set_channel(uint8_t channel_idx)
+{
+    if (channel_idx >= RADIO_CHANNEL_COUNT)
+    {
+        return 0U;
+    }
+
+    if (s_channel_idx == channel_idx)
+    {
+        return 1U;
+    }
+
+    /* Only allow channel switch when fully idle (no in-flight op, no pending IRQ). */
+    if ((s_busy != 0U) || (s_irq_pending != 0U))
+    {
+        return 0U;
+    }
+
+    sx1262_set_rf_frequency(s_channel_hz[channel_idx]);
+    s_channel_idx = channel_idx;
+    return 1U;
+}
+
+uint8_t radio_get_channel(void)
+{
+    return s_channel_idx;
 }
 
 void radio_request_cad(uint8_t cad_symbols)
