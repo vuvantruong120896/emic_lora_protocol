@@ -2,9 +2,15 @@
 
 ## 0. Scope
 
-Tài liệu giao thức frame/message **chính thức**: xem `docs/emic_lora_protocol_frame_spec.md`.
+Tài liệu giao thức frame/message **chính thức**: xem [emic_lora_protocol_frame_spec.md](emic_lora_protocol_frame_spec.md).
 
 Tài liệu này chốt kiến trúc và luồng/protocol cho hệ **Node báo cháy không dây** dùng **LoRa (SX1262)** theo mô hình **Star, private (không LoRaWAN)**.
+
+> **Tham chiếu tài liệu chuẩn:**
+> - Kiến trúc layer: xem [emic_lora_stack_architecture.md](emic_lora_stack_architecture.md) (Mục 2-4: PHY/MAC/Protocol layers)
+> - Định dạng frame & bảo mật: xem [emic_lora_protocol_frame_spec.md](emic_lora_protocol_frame_spec.md) (Mục 8: AES-128-CCM encryption, anti-replay window=1)
+
+**Phiên bản Protocol:** V2 (AES-128-CCM authenticated encryption, 24-bit msg_id counter, strictly monotonic anti-replay)
 
 Mục tiêu chính:
 
@@ -64,7 +70,7 @@ Ngoài phạm vi:
 - **SF: 7 (fixed for all nodes)**
 - BW: 125 kHz (khuyến nghị)
 - CR: 4/5 (khuyến nghị)
-- CRC: on
+- CRC: on (PHY-level CRC, xem [emic_lora_stack_architecture.md](emic_lora_stack_architecture.md) Mục 2.2)
 - Whitening: theo radio HW
 
 ### 2.3 Downlink paging parameters (để đạt ≤6s)
@@ -93,9 +99,10 @@ Mục tiêu:
 
 Nguyên lý:
 
-- Protocol V1 cung cấp `time_rtc(second)` trong **Extend** của `JOIN_ACCEPT` và `ACK` (plaintext, 4 bytes).
-- Node set RTC theo `time_rtc` khi nhận các frame hợp lệ.
+- Protocol V2 cung cấp `time_rtc(second)` trong **Extend** của `JOIN_ACCEPT` và `ACK` (4 bytes, plaintext — xem [emic_lora_protocol_frame_spec.md](emic_lora_protocol_frame_spec.md) Mục 9).
+- Node set RTC theo `time_rtc` khi nhận các frame hợp lệ (xem [emic_lora_stack_architecture.md](emic_lora_stack_architecture.md) Mục 4: Protocol Layer verification).
 - Gateway-loss detection phía node dựa trên việc có thấy **downlink hợp lệ** gần đây hay không (thường là `ACK` sau uplink).
+- **Bảo mật:** "downlink hợp lệ" = frame đã pass Protocol layer MIC verification + anti-replay check (msg_id strictly monotonic, window=1)
 
 Khuyến nghị vận hành:
 
@@ -113,8 +120,8 @@ Khuyến nghị vận hành:
 
 ### 3.1 Uplink heartbeat
 
-- Theo protocol V1, hầu hết uplink ED→GW cần được gateway phản hồi `ACK` (trừ `JOIN_REQUEST`).
-- Gateway dùng `ACK` để xác nhận frame và đồng thời cung cấp `time_rtc` cho node.
+- Theo protocol V2 (AES-128-CCM), hầu hết uplink ED→GW cần được gateway phản hồi `ACK` (trừ `JOIN_REQUEST`).
+- Gateway dùng `ACK` để xác nhận frame (MAC layer) và đồng thời cung cấp `time_rtc` cho node (Protocol layer).
 
 ### 3.1.1 Uplink “ALARM_EVENT” (local alarm only)
 
@@ -137,31 +144,22 @@ Khuyến nghị vận hành:
 
 ---
 
-## 4. Security (Private Network)
+## 4. Security (Private Network) — Protocol V2
 
-Chi tiết CRC16 + mã hoá của **Protocol V1**: xem `docs/emic_lora_protocol_frame_spec.md`.
+Chi tiết encryption, authentication, anti-replay của **Protocol V2**: xem [emic_lora_protocol_frame_spec.md](emic_lora_protocol_frame_spec.md) Mục 8.
+
+Chi tiết layer architecture: xem [emic_lora_stack_architecture.md](emic_lora_stack_architecture.md) Mục 4-6.
 
 Yêu cầu tối thiểu:
 
-- Chống nghe lén (confidentiality) cho uplink.
-- Chống giả mạo (integrity/auth) cho uplink + downlink ALARM.
-- Chống replay.
+- **Confidentiality** (che giấu): Toàn bộ payload được mã hóa bằng **AES-128-CCM** (xem [emic_lora_stack_architecture.md](emic_lora_stack_architecture.md) Mục 6)
+- **Integrity/Authentication** (xác thực): MIC (4 bytes) được tính từ plaintext + nonce + AAD, chống tampering
+- **Replay Protection** (chống lặp lại): Protocol layer kiểm tra **msg_id (24-bit) strictly monotonic per source** với window=1 (xem [emic_lora_stack_architecture.md](emic_lora_stack_architecture.md) Mục 4.3)
 
-Protocol V1 hiện tại sử dụng **AES-128-ECB** (không IV) và CRC16 để phát hiện lỗi truyền.
-
-> Ghi chú: ECB/CRC16 **không cung cấp xác thực/chống giả mạo** theo nghĩa cryptographic. Nếu cần mức an toàn cao hơn (integrity/auth + replay protection mạnh), hãy lên kế hoạch V2 dùng MIC/AEAD (ví dụ CCM).
-
-Downlink ALARM broadcast có 2 lựa chọn:
-
-- **Option A (khuyến nghị cho MVP): GroupKey** dùng chung cho mạng để mã hóa+xác thực ALARM_BCAST.
-  - Ưu điểm: đơn giản, node xác thực nhanh.
-  - Nhược: lộ key từ 1 node ảnh hưởng toàn mạng.
-- Option B: chỉ MIC (CMAC) không mã hóa payload (nếu nội dung ALARM không nhạy cảm) nhưng vẫn chống giả mạo.
-
-Replay protection:
-
-- Mỗi node duy trì **FCnt (32-bit)** tăng đơn điệu.
-- Gateway lưu last-seen FCnt cho từng DevID; drop gói nếu FCnt không tăng.
+Protocol V2 sử dụng **AES-128-CCM** (authenticated encryption):
+- ✅ Mã hóa xác thực + anti-replay (unified)
+- ✅ NIST approved (SP 800-38C)
+- ✅ Hiệu quả hơn V1 (AES-ECB + CRC16 không xác thực)
 
 ---
 
@@ -189,13 +187,17 @@ Tag/MIC: (dành cho V2 nếu triển khai AEAD/MIC).
 
 - HEARTBEAT (UL)
   - pin (mV), sensor status, tamper, error flags
-- ALARM_EVENT (UL)
+- ALARM_EVENT (UL, Type 0x03)
   - alarm type, level, local timestamp/uptime
-- ALARM_BCAST (DL, broadcast)
+- ALARM_BCAST (DL, broadcast, Type 0x03)
   - alarm id / event counter, alarm type, optional zone
+- ALARM_CLEAR (DL, Type 0x04) — clear local or remote alarm
+- SIREN_SILENCE (DL, Type 0x0E) — mute buzzer
 - Time sync: `time_rtc(second)` trong Extend của `JOIN_ACCEPT` và `ACK` (4 bytes, plaintext)
-- ALARM_SEEN (UL)
-  - alarm id (từ ALARM_BCAST), status “actuating”, optional RSSI/SNR last
+- ALARM_SEEN (UL, Type 0x09 hoặc alarm ack message)
+  - alarm id (từ ALARM_BCAST), status "actuating", optional RSSI/SNR last
+
+> **Xem [emic_lora_protocol_frame_spec.md](emic_lora_protocol_frame_spec.md) Mục 9** để chi tiết tất cả 19 message types.
 
 ---
 

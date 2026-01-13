@@ -1,6 +1,12 @@
 # Node Smoke (R7F100 + SX1262) — Folder Review & Layer Proposal
 
-## 1) Review cấu trúc hiện tại (as-is)
+**⚠️ Note:** Tài liệu này là **proposal cho future refactoring**. Cấu trúc code hiện tại được tổ chức hợp lý nhưng chưa hoàn toàn theo tầng này. Xem [emic_lora_stack_architecture.md](emic_lora_stack_architecture.md) cho kiến trúc hiện tại chính thức.
+
+> **Tham chiếu tài liệu chuẩn:**
+> - Kiến trúc layer: xem [emic_lora_stack_architecture.md](emic_lora_stack_architecture.md) (Mục 2-4: PHY/MAC/Protocol layers)
+> - Terminology: "MAC Layer" (chứ không "Link Layer")
+
+---
 
 Workspace hiện có 3 khối chính:
 
@@ -13,8 +19,7 @@ Workspace hiện có 3 khối chính:
 Nhận xét:
 
 - `src/user/` hiện chính là “source of truth” cho toàn bộ stack; về boundary: **app/services chỉ gọi `lora_stack` (facade public)**, còn `lora_link`/`radio_if`/`sx1262` là **internal detail**.
-- Việc tách `smc_gen/` và `user/` giúp tránh sửa nhầm file generated, đồng thời build system rõ ràng hơn.
-
+- Việc tách `smc_gen/` và `user/` giúp tránh sửa nhầm file generated, đồng thời build system rõ ràng hơn.- **Note:** `lora_link` là MAC layer implementation (xem [emic_lora_stack_architecture.md](emic_lora_stack_architecture.md) Mục 3).
 ### 1.2 `HardwareDebug/` (khả năng cao là build output)
 
 - Có `HardwareDebug/src/*` nhưng chủ yếu là `.obj/.d/.ud` (binary artifacts), không phải `.c/.h` nguồn.
@@ -64,7 +69,7 @@ Kết quả mong muốn:
 
 - Chứa: `src/user/hal/**`
 - Vai trò: GPIO/SPI/UART/RTC/timer/systick + primitive sleep/irq.
-- Quy tắc: HAL không biết “LoRa/Smoke/Protocol”.
+- Quy tắc: HAL không biết "LoRa/Smoke/Protocol" (xem [emic_lora_stack_architecture.md](emic_lora_stack_architecture.md) Mục 2: PHY Layer).
 
 3) **Drivers (device/board driver)**
 
@@ -83,15 +88,20 @@ Ghi chú: đây là **internal detail** phía sau facade `lora_stack` (app/servi
   - Semtech sx126x core driver (pure C)
   - board glue (dùng HAL SPI/GPIO)
   - primitives: tx/rx/cad callbacks
+- **Layer:** PHY layer (xem [emic_lora_stack_architecture.md](emic_lora_stack_architecture.md) Mục 2)
 
-5) **Link/MAC/Protocol (private, application-agnostic)**
+5) **MAC/Link + Protocol (private, application-agnostic)**
 
-- Đề xuất tạo: `src/user/link/**` hoặc `src/user/protocol/**`
+- Đề xuất tạo: `src/user/mac/` (để chuẩn hóa terminology thay vì `link`)
 - Chứa:
-  - frame encode/decode, AES-CCM wrapper
-  - FCnt/replay
-  - heartbeat scheduler logic (không dính smoke)
-  - CAD paging state machine (Tscan=2s, CAD symbols=4, preamble=8)
+  - **MAC layer** (xem [emic_lora_stack_architecture.md](emic_lora_stack_architecture.md) Mục 3):
+    - frame encode/decode, ACK + retry mechanism
+    - CAD paging state machine (Tscan=2s, CAD symbols=4, preamble=8)
+  - **Protocol layer** (xem [emic_lora_stack_architecture.md](emic_lora_stack_architecture.md) Mục 4):
+    - AES-128-CCM encryption + authentication
+    - anti-replay check (msg_id strictly monotonic, window=1)
+    - message type handling
+    - nonce construction
 
 6) **Services (domain services cho node smoke)**
 
@@ -108,13 +118,15 @@ Ghi chú: đây là **internal detail** phía sau facade `lora_stack` (app/servi
 - Chứa:
   - `app_main.c`: init + main loop
   - `app_config.h`: tham số compile-time
-  - chỉ làm wiring giữa services/link
+  - chỉ làm wiring giữa services/MAC
 
 ### 3.2 Dependency rules (rất quan trọng để MCU “nhẹ”)
 
-- `app` → `services` → `link` → `radio` → `drv` → `hal` → `smc_gen`
+- `app` → `services` → `MAC` → `radio` → `drv` → `hal` → `smc_gen`
 - `utils` là thư viện dưới cùng: được phép dùng ở mọi tầng (nhưng không được gọi ngược lên).
 - ISR chỉ set flag/queue event, không chạy state machine dài.
+
+**Note:** "MAC" là tên chuẩn IEEE 802.15.4 thay thế cho "Link" (xem [emic_lora_stack_architecture.md](emic_lora_stack_architecture.md) Mục 3).
 
 ---
 
@@ -124,9 +136,12 @@ Ghi chú: đây là **internal detail** phía sau facade `lora_stack` (app/servi
 - `src/user/hal/**` → Layer 2 (HAL)
 - `src/user/utils/**` → Utils/common
 - `src/user/drv/**` → Layer 3 (Drivers)
-- `src/user/radio/**` → Layer 4 (Radio, internal)
-- `src/user/link/**` + `src/user/protocol/**` → Layer 5 (Link/Protocol, internal detail behind facade)
-- `src/user/link/lora_stack.*` → Facade API cho upper layers (app/services chỉ include facade)
+- `src/user/radio/**` → Layer 4 (PHY/Radio, internal)
+- `src/user/link/**` + `src/user/protocol/**` → Layer 5 (MAC + Protocol, internal detail behind facade)
+  - **Future refactor proposal:** Rename `src/user/link/` → `src/user/mac/` để chuẩn hóa terminology
+  - **Protocol layer files:** `emic_lora_protocol.c/h` (message types, nonce builder)
+  - **MAC layer files:** `lora_link.c/h` (frame format, ACK+retry, CAD paging)
+  - **Facade:** `src/user/link/lora_stack.*` (public API) → future: `src/user/mac/lora_stack.*`
 - `src/user/services/**` → Layer 6 (Services)
 - `src/user/app/**` → Layer 7 (Application)
 - `src/main.c` → entrypoint gọi `app_init()`/`app_run_forever()`

@@ -2,6 +2,11 @@
 
 Mục tiêu: cho cái nhìn **trực quan** về quan hệ phụ thuộc và các **điểm giao tiếp** quan trọng giữa các layer trong firmware hiện tại.
 
+> **Tham chiếu tài liệu chuẩn:**
+> - Kiến trúc layer: xem [emic_lora_stack_architecture.md](emic_lora_stack_architecture.md) (Mục 2-4: PHY/MAC/Protocol layers)
+> - Định dạng frame & bảo mật: xem [emic_lora_protocol_frame_spec.md](emic_lora_protocol_frame_spec.md) (Mục 8-10: AES-128-CCM, anti-replay, message types)
+> - **Terminology:** "MAC Layer" (chứ không "Link Layer"), **"AES-128-CCM"** (Protocol layer encryption), **"msg_id"** (Protocol anti-replay counter)
+
 ---
 
 ## 1) Layer map (phụ thuộc 1 chiều)
@@ -21,14 +26,14 @@ flowchart TD
     S4["power_service"]
   end
 
-  subgraph LINK[Layer 5: link]
+  subgraph LINK[Layer 5: MAC]
     L0["lora_stack (facade)"]
-    L1["lora_link (internal)"]
+    L1["lora_link / MAC (internal)"]
   end
 
   subgraph PROTO[Layer 4: protocol]
-    P1["emic_lora_protocol"]
-    P2["emic_lora_crypto + emic_lora_crc16_modbus"]
+    P1["emic_lora_protocol (AES-128-CCM)"]
+    P2["emic_lora_crypto + nonce_builder"]
   end
 
   subgraph RADIO[Layer 3a: radio]
@@ -101,18 +106,20 @@ flowchart TD
 
 | Layer    | Gọi                 | Được gọi bởi |
 | -------- | -------------------- | ----------------- |
-| app      | services, link       | main()            |
-| services | link, drv, hal       | app               |
-| link     | radio, protocol, drv | app, services     |
-| protocol | hal/utils (crypto)   | link              |
-| radio    | drv, hal             | link (internal)   |
+| app      | services, MAC       | main()            |
+| services | MAC, drv, hal       | app               |
+| MAC      | radio, protocol, drv | app, services     |
+| protocol | hal/utils (crypto)   | MAC              |
+| radio    | drv, hal             | MAC (internal)   |
 | drv      | hal                  | services, radio   |
 | hal      | smc_gen              | (all)             |
 | smc_gen  | (hw registers)       | hal               |
 
 Ghi chú:
 
-- Luồng phụ thuộc "đúng hướng": `app → services → link → radio → drv → hal → smc_gen`.
+- Luồng phụ thuộc "đúng hướng": `app → services → MAC → radio → drv → hal → smc_gen`.
+- **MAC layer** ("Link" layer cũ, được chuẩn hóa thành "MAC" theo IEEE 802.15.4) chịu trách nhiệm: frame format, ACK + retry, link reliability (xem [emic_lora_stack_architecture.md](emic_lora_stack_architecture.md) Mục 3).
+- **Protocol layer** chịu trách nhiệm: AES-128-CCM encryption, anti-replay check (msg_id window=1), message type handling (xem [emic_lora_stack_architecture.md](emic_lora_stack_architecture.md) Mục 4).
 - `protocol` là thư viện logic (build/parse frame + crypto) không chạm phần cứng.
 - Không được gọi "ngược lên" (ví dụ `hal` không gọi `app`).
 
@@ -120,12 +127,12 @@ Ghi chú:
 
 ## 2) Các điểm giao tiếp quan trọng (cross-layer API)
 
-### 2.1 App ↔ Services ↔ Link
+### 2.1 App ↔ Services ↔ MAC
 
 - `app_main.c`:
 
   - Mỗi vòng lặp: `button_run()` → `lora_stack_run()` → `alarm_service_run()`.
-  - Sau đó gom event từ button/link/smoke và **post vào `device_fsm`**.
+  - Sau đó gom event từ button/MAC/smoke và **post vào `device_fsm`**.
   - `device_fsm_run()` mới là nơi ra quyết định: cập nhật alarm state và gọi các trigger `lora_stack_*` tương ứng.
 - `heartbeat_service_send()` chỉ là wrapper: gọi `lora_stack_send_heartbeat()`.
 
@@ -134,17 +141,16 @@ Các trigger từ `device_fsm` xuống stack (app-facing):
 - Local alarm ON: `lora_stack_notify_local_alarm()` (smoke detected / test-hold)
 - Local alarm OFF: `lora_stack_notify_local_alarm_cleared()` (smoke cleared / test release)
 
-Các event từ `lora_stack_poll_event()` (hiện tại):
+Các event từ `lora_stack_poll_event()` (hiện tại, xem [emic_lora_protocol_frame_spec.md](emic_lora_protocol_frame_spec.md) Mục 9 cho danh sách message types):
 
 - `HEARTBEAT_DUE`
-- `REMOTE_ALARM`
-- `REMOTE_ALARM_STOP`
-- `REMOTE_SILENCE`
+- `REMOTE_ALARM` (Type 0x03: ALARM_BCAST)
+- `REMOTE_ALARM_CLEAR` (Type 0x04: ALARM_CLEAR)
+- `REMOTE_SILENCE` (Type 0x0E: SIREN_SILENCE)
 - `GW_LOST`
 - `JOIN_ACCEPTED`
 - `ENTER_OPERATION`
-- `EXIT_GW`
-- `TEST_ED`
+- `LEAVE_NETWORK` (Type 0x0F)
 
 ```mermaid
 sequenceDiagram
@@ -174,40 +180,40 @@ sequenceDiagram
   end
 ```
 
-### 2.2 Link ↔ Radio
+### 2.2 MAC ↔ Radio
 
 Ghi chú: phần này là **internal detail** phía sau facade `lora_stack`.
 
-- Link yêu cầu radio thực hiện:
+- MAC yêu cầu radio thực hiện:
 
   - `radio_request_cad()` (CAD paging)
   - `radio_request_rx()` (RX window sau CAD)
   - `radio_request_tx()` (uplink)
-- Link tiêu thụ radio event:
+- MAC tiêu thụ radio event:
 
   - `radio_poll_event()` trả về `CAD_DETECTED / CAD_DONE / RX_DONE / TX_DONE / TIMEOUT / ERROR`.
 
 ```mermaid
 sequenceDiagram
-  participant LINK as lora_link (internal)
+  participant MAC as lora_link / MAC (internal)
   participant RADIO as radio_if (internal)
 
-  Note over LINK: Periodic CAD schedule (every ~2s)
-  LINK->>RADIO: radio_request_cad(APP_CAD_SYMBOLS)
+  Note over MAC: Periodic CAD schedule (every ~2s)
+  MAC->>RADIO: radio_request_cad(APP_CAD_SYMBOLS)
 
   loop poll until event
-    LINK->>RADIO: radio_poll_event()
+    MAC->>RADIO: radio_poll_event()
     alt CAD_DETECTED
-      RADIO-->>LINK: RADIO_EVENT_CAD_DETECTED
-      LINK->>RADIO: radio_request_rx(APP_RX_AFTER_CAD_MS)
+      RADIO-->>MAC: RADIO_EVENT_CAD_DETECTED
+      MAC->>RADIO: radio_request_rx(APP_RX_AFTER_CAD_MS)
     else CAD_DONE
-      RADIO-->>LINK: RADIO_EVENT_CAD_DONE
+      RADIO-->>MAC: RADIO_EVENT_CAD_DONE
     else RX_DONE
-      RADIO-->>LINK: RADIO_EVENT_RX_DONE
+      RADIO-->>MAC: RADIO_EVENT_RX_DONE
     else TX_DONE
-      RADIO-->>LINK: RADIO_EVENT_TX_DONE
+      RADIO-->>MAC: RADIO_EVENT_TX_DONE
     else TIMEOUT or ERROR
-      RADIO-->>LINK: RADIO_EVENT_TIMEOUT / RADIO_EVENT_ERROR
+      RADIO-->>MAC: RADIO_EVENT_TIMEOUT / RADIO_EVENT_ERROR
     end
   end
 ```
@@ -362,4 +368,4 @@ flowchart TD
 
 Ghi chú cập nhật (encapsulation):
 
-- `power_service` không gọi trực tiếp `radio_if`; thay vào đó dùng `lora_stack_is_busy()` và `lora_stack_sleep_if_idle()`.
+- `power_service` không gọi trực tiếp `radio_if`; thay vào đó dùng `lora_stack_is_busy()` và `lora_stack_sleep_if_idle()` (xem [emic_lora_stack_architecture.md](emic_lora_stack_architecture.md) Mục 3: MAC Layer ACK + retry).

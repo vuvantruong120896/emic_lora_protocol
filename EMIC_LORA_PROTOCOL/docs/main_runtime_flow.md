@@ -2,6 +2,11 @@
 
 Mục tiêu: mô tả **1 cách trực quan nhất** "hệ thống chạy như thế nào" từ lúc boot đến các nhánh: bình thường, local alarm, remote alarm.
 
+> **Tham chiếu tài liệu chuẩn:**
+> - Kiến trúc layer: xem [emic_lora_stack_architecture.md](emic_lora_stack_architecture.md) (Mục 3-4: MAC Layer & Protocol Layer)
+> - Định dạng frame & bảo mật: xem [emic_lora_protocol_frame_spec.md](emic_lora_protocol_frame_spec.md) (Mục 8: AES-128-CCM, anti-replay)
+> - Terminology: "MAC Layer" (chứ không "Link Layer"), "msg_id" (Protocol counter), "MAC seq" (link-level sequence)
+
 ---
 
 ## 0) Tham số cấu hình chính (tóm tắt)
@@ -11,8 +16,10 @@ Mục tiêu: mô tả **1 cách trực quan nhất** "hệ thống chạy như t
 - CAD symbols: 4
 - RX after CAD hit: ~120 ms
 - Heartbeat uplink: ~240 s ± jitter
-- Gateway → Node: cung cấp **time_rtc (seconds)** trong **Extend** của `JOIN_ACCEPT` và `ACK` (theo `docs/emic_lora_protocol_frame_spec.md`)
+- Gateway → Node: cung cấp **time_rtc (seconds)** trong **Extend** của `JOIN_ACCEPT` và `ACK` (theo [emic_lora_protocol_frame_spec.md](emic_lora_protocol_frame_spec.md))
 - Node gateway-lost: **> 300s** không thấy **downlink hợp lệ** (sau khi đã từng thấy downlink)
+- **Bảo mật:** Toàn bộ payload được mã hóa và xác thực bằng **AES-128-CCM** (xem [emic_lora_stack_architecture.md](emic_lora_stack_architecture.md) Mục 4.2)
+- **Anti-replay:** Protocol layer kiểm tra **msg_id (24-bit) strictly monotonic** per source với window=1 (xem [emic_lora_stack_architecture.md](emic_lora_stack_architecture.md) Mục 4.3)
 
 ---
 
@@ -83,12 +90,12 @@ flowchart TD
 1. **Poll RTC tick** (`app_on_rtc_tick_poll()`): kiểm tra RTCIF flag.
 2. **Run state machines**: update internal FSM states (không emit event ra ngoài):
    - `button_run()`: gesture recognition FSM (IDLE/PRESSED/WAIT_SECOND)
-  - `lora_stack_run()`: CAD/RX/TX FSM (IDLE/WAIT_CAD/WAIT_RX/WAIT_TX)
+   - `lora_stack_run()`: (MAC layer) CAD/RX/TX FSM (IDLE/WAIT_CAD/WAIT_RX/WAIT_TX) — xem [emic_lora_stack_architecture.md](emic_lora_stack_architecture.md) Mục 3
    - `alarm_service_run()`: buzzer pattern FSM
 3. **Collect and post all events** (`app_collect_and_post_events()`):
   - Button gestures: loop poll → CLICK_1..CLICK_4, HOLD_1S/3S/5S
     - `app_main` maps these raw gestures into **semantic** `DEVICE_EVENT_BTN_*` actions.
-  - Link events: loop poll → HEARTBEAT_DUE/REMOTE_ALARM_ON/REMOTE_ALARM_OFF/REMOTE_SILENCE + protocol events
+  - MAC layer events: loop poll → HEARTBEAT_DUE/REMOTE_ALARM_ON/REMOTE_ALARM_OFF/REMOTE_SILENCE + protocol events (xem [emic_lora_stack_architecture.md](emic_lora_stack_architecture.md) Mục 3: MAC Layer)
    - Smoke sensor: loop poll → FIRE_DETECTED/FIRE_CLEARED (dual-edge detection)
 4. **Dispatch FSM** (`device_fsm_run()`): drain event queue → state-dependent actions
 5. **Power idle** (`power_service_idle()`): decide STOP vs HALT based on activity state
@@ -197,31 +204,33 @@ flowchart TD
 
 ## 3) Luồng bình thường (không có alarm)
 
-### 3.1 CAD paging theo cấu hình (APP_CAD_SCAN_PERIOD_MS)
+### 3.1 CAD paging theo cấu hình (APP_CAD_SCAN_PERIOD_MS) — MAC Layer
 
 **Note:** Khi Join Mode đang bật, stack sẽ **tạm dừng CAD paging** để không tranh lịch radio với chu kỳ JoinRequest/RX.
+
+**Layer:** CAD paging là **MAC layer responsibility** (xem [emic_lora_stack_architecture.md](emic_lora_stack_architecture.md) Mục 3.3).
 
 ```mermaid
 sequenceDiagram
   participant RTC as RTC tick 0.5s
   participant APP as app_main
   participant STACK as lora_stack
-  participant LINK as lora_link (internal)
+  participant MAC as lora_link/MAC (internal)
   participant RADIO as radio_if (internal)
   participant SX as sx1262 (internal)
 
   RTC-->>APP: tick observed in main
   APP->>STACK: lora_stack_on_rtc_halfsec_tick()
   APP->>STACK: lora_stack_run()
-  STACK->>LINK: lora_link_run() (internal)
-  LINK->>RADIO: radio_request_cad(APP_CAD_SYMBOLS)
+  STACK->>MAC: lora_link_run() / MAC layer (internal)
+  MAC->>RADIO: radio_request_cad(APP_CAD_SYMBOLS)
   RADIO->>SX: sx1262_start_cad()
 
   Note over SX,RADIO: DIO1 IRQ arrives (CAD_DONE / CAD_DETECTED)
   APP->>STACK: lora_stack_run()
-  STACK->>LINK: lora_link_run() (internal)
-  LINK->>RADIO: radio_poll_event()
-  RADIO-->>LINK: RADIO_EVENT_CAD_DONE
+  STACK->>MAC: lora_link_run() / MAC layer (internal)
+  MAC->>RADIO: radio_poll_event()
+  RADIO-->>MAC: RADIO_EVENT_CAD_DONE
   STACK-->>APP: (no alarm)
 ```
 
@@ -266,43 +275,46 @@ Join Mode là một mode tạm thời để vào mạng theo thao tác người 
   - Lưu `channel index` vào Data Flash và switch sang kênh được cấp phát cho CAD/RX/TX sau đó
   - Hiển thị join-success: LED xanh toggle mỗi 1s trong vài giây
 
-## 4) Time sync (gateway → node)
+## 4) Time sync (gateway → node) — Protocol Layer
 
-Theo protocol V1, gateway gửi `time_rtc(second)` (4 bytes, plaintext) trong **Extend** của:
+Theo protocol V2 (AES-128-CCM), gateway gửi `time_rtc(second)` (4 bytes, plaintext) trong **Extend** của:
 
 - `JOIN_ACCEPT`
 - `ACK`
 
-Node sẽ set RTC theo giá trị `time_rtc` khi nhận được các frame hợp lệ này.
+Node sẽ set RTC theo giá trị `time_rtc` khi nhận được các frame hợp lệ này (xem [emic_lora_protocol_frame_spec.md](emic_lora_protocol_frame_spec.md) Mục 9).
+
+**Layer:** Time sync verification là **Protocol layer responsibility** (xem [emic_lora_stack_architecture.md](emic_lora_stack_architecture.md) Mục 4: Protocol Layer).
 
 ```mermaid
 sequenceDiagram
   participant STACK as lora_stack
-  participant LINK as lora_link (internal)
+  participant MAC as lora_link/MAC (internal)
   participant RADIO as radio_if (internal)
   participant SX as sx1262 (internal)
   participant PROTO as emic_lora_protocol
   participant HAL as hal_rtc
 
-  STACK->>LINK: run/poll internal loop
-  LINK->>RADIO: radio_request_cad()
+  STACK->>MAC: run/poll internal loop
+  MAC->>RADIO: radio_request_cad()
   Note over SX,RADIO: DIO1 IRQ CAD_DETECTED
-  LINK->>RADIO: radio_poll_event()
-  RADIO-->>LINK: RADIO_EVENT_CAD_DETECTED
-  LINK->>RADIO: radio_request_rx(120ms)
+  MAC->>RADIO: radio_poll_event()
+  RADIO-->>MAC: RADIO_EVENT_CAD_DETECTED
+  MAC->>RADIO: radio_request_rx(120ms)
 
   Note over SX,RADIO: DIO1 IRQ RX_DONE
-  LINK->>RADIO: radio_poll_event()
-  RADIO-->>LINK: RADIO_EVENT_RX_DONE
-  LINK->>RADIO: radio_read_rx_payload()
-  LINK->>PROTO: parse + verify CRC16 + decrypt (AES-ECB)
+  MAC->>RADIO: radio_poll_event()
+  RADIO-->>MAC: RADIO_EVENT_RX_DONE
+  MAC->>RADIO: radio_read_rx_payload()
+  MAC->>PROTO: parse frame + pass encrypted payload
+  PROTO->>PROTO: verify MIC + decrypt (AES-128-CCM) + anti-replay check (msg_id window=1)
 
   alt frame == JOIN_ACCEPT or ACK (extend has time_rtc)
-    LINK->>HAL: hal_rtc_set_time() (from time_rtc)
-  else frame == ALARM_BCAST/ALARM_STOP/SILENCE/etc
-    LINK->>LINK: handled by alarm flow
-  else other/invalid
-    LINK->>LINK: ignore
+    PROTO->>HAL: hal_rtc_set_time() (from time_rtc)
+  else frame == ALARM_BCAST/ALARM_CLEAR/SIREN_SILENCE/etc
+    PROTO->>PROTO: handled by alarm flow
+  else other/invalid (MIC fail, replay)
+    PROTO->>PROTO: ignore
   end
 ```
 
@@ -330,43 +342,49 @@ flowchart TD
 - "Gateway online" = trong vòng 300s gần nhất có **downlink hợp lệ**.
 - Downlink hợp lệ thường là `ACK` sau các uplink (HEARTBEAT/ALARM/EXIT...), nên **không cần** một loại "beacon" riêng.
 - Khi mất downlink > 300s, node **phát hiện** và phát event `GW_LOST` (1 lần cho mỗi lần transition).
+- **Bảo mật:** "downlink hợp lệ" nghĩa là frame đã pass Protocol layer verification (MIC check + anti-replay check với msg_id window=1)
 
 ---
 
-## 6) Luồng remote alarm (gateway → node kêu)
+## 6) Luồng remote alarm (gateway → node kêu) — Protocol + MAC Layers
+
+**Note:** Downlink alarm có thể bidirectional từ Protocol layer, nhưng MAC layer chỉ gửi ACK khi ACK_REQ=1 (xem [emic_lora_stack_architecture.md](emic_lora_stack_architecture.md) Mục 3.3).
 
 ```mermaid
 sequenceDiagram
   participant STACK as lora_stack
-  participant LINK as lora_link (internal)
+  participant MAC as lora_link/MAC (internal)
   participant RADIO as radio_if (internal)
   participant SX as sx1262 (internal)
   participant PROTO as emic_lora_protocol
   participant APP as app_main
   participant ALARM as alarm_service
 
-  STACK->>LINK: run/poll internal loop
-  LINK->>RADIO: radio_request_cad()
+  STACK->>MAC: run/poll internal loop
+  MAC->>RADIO: radio_request_cad()
   Note over SX,RADIO: DIO1 IRQ CAD_DETECTED
-  LINK->>RADIO: radio_poll_event()
-  RADIO-->>LINK: RADIO_EVENT_CAD_DETECTED
-  LINK->>RADIO: radio_request_rx(APP_RX_AFTER_CAD_MS)
+  MAC->>RADIO: radio_poll_event()
+  RADIO-->>MAC: RADIO_EVENT_CAD_DETECTED
+  MAC->>RADIO: radio_request_rx(APP_RX_AFTER_CAD_MS)
   Note over SX,RADIO: DIO1 IRQ RX_DONE
-  LINK->>RADIO: radio_poll_event()
-  RADIO-->>LINK: RADIO_EVENT_RX_DONE
-  LINK->>RADIO: radio_read_rx_payload()
-  LINK->>PROTO: parse + verify CRC16 + decrypt (AES-ECB)
-  PROTO-->>LINK: ALARM_BCAST + alarm_id
-  LINK-->>STACK: push event REMOTE_ALARM
+  MAC->>RADIO: radio_poll_event()
+  RADIO-->>MAC: RADIO_EVENT_RX_DONE
+  MAC->>RADIO: radio_read_rx_payload()
+  MAC->>PROTO: parse frame + pass encrypted payload
+  PROTO->>PROTO: verify MIC + decrypt (AES-128-CCM) + anti-replay (msg_id)
+  PROTO-->>MAC: ALARM_BCAST + alarm_id
+  MAC-->>STACK: push event REMOTE_ALARM
   STACK-->>APP: lora_stack_poll_event() => REMOTE_ALARM
   APP->>ALARM: alarm_service_set_remote_alarm(1)
   Note over APP: alarm_service drives buzzer using a standard cadence (Temporal-3)
-  LINK->>LINK: schedule ALARM_SEEN uplink with random backoff
+  MAC->>MAC: schedule ALARM_SEEN uplink with random backoff (MAC layer scheduling)
 ```
 
 ---
 
-## 7) Luồng local alarm (smoke/button → node kêu + uplink)
+## 7) Luồng local alarm (smoke/button → node kêu + uplink) — Protocol + MAC Layers
+
+**Note:** Local alarm uplink (ALARM_EVENT) được encrypt và xác thực bằng AES-128-CCM ở Protocol layer, sau đó gửi qua MAC layer với ACK request (xem [emic_lora_protocol_frame_spec.md](emic_lora_protocol_frame_spec.md) Mục 9.1).
 
 ### 7.1 Local alarm từ smoke sensor (dual-edge detection)
 
@@ -385,7 +403,7 @@ sequenceDiagram
   APP->>FSM: device_fsm_run()
   FSM->>ALARM: alarm_service_set_local_alarm(1)
   FSM->>STACK: lora_stack_notify_local_alarm()
-  Note over STACK: next lora_stack_run() will TX ALARM_EVENT uplink
+  Note over STACK: next lora_stack_run() will TX ALARM_EVENT uplink<br/>(Protocol: AES-128-CCM encrypt, MAC: ACK_REQ + retry)
 
   Note over SMOKE,APP: Smoke 1→0 transition (fire extinguished)
   APP->>SMOKE: smoke_service_poll_event()
@@ -404,7 +422,7 @@ sequenceDiagram
 **Policy notes:**
 
 - Local alarm auto-clears khi cảm biến không còn phát hiện khói
-- Remote alarm vẫn cần GW gửi ALARM_STOP/SILENCE để clear (không auto-clear)
+- Remote alarm vẫn cần GW gửi ALARM_CLEAR/SIREN_SILENCE để clear (không auto-clear) — xem [emic_lora_protocol_frame_spec.md](emic_lora_protocol_frame_spec.md) Mục 9
 - Button luôn có thể ack/hush local alarm nếu có dedicated gesture
 
 ### 7.2 Local alarm từ Button (gesture-level events mapped to business actions)
@@ -455,6 +473,7 @@ sequenceDiagram
   APP->>FSM: device_fsm_run()
   FSM->>ALARM: alarm_service_set_local_alarm(1) - map to SMOKE_TEST action
   FSM->>STACK: lora_stack_notify_local_alarm()
+  Note over STACK: Uplink with AES-128-CCM + ACK request (MAC layer)
 ```
 
 ---
