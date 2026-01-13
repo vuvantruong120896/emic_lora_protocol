@@ -1,5 +1,5 @@
 /**
- * @file lora_link.c
+ * @file lora_mac.c
  * @brief Implementation of LoRa link layer: MAC state machine, CAD paging, and frame handling.
  *
  * @details
@@ -15,7 +15,7 @@
  * @date 2026-01-09
  */
 
-#include "lora_link.h"
+#include "lora_mac.h"
 
 #include <string.h>
 
@@ -267,7 +267,7 @@ static void link_update_fcnt_down_from_payload(const uint8_t *payload, uint8_t p
 
 /* Link event ring buffer (avoid dropping multi-events like JoinAccept + AlarmStop). */
 #define LINK_EV_QUEUE_CAPACITY (8U)
-static lora_link_event_t s_ev_queue[LINK_EV_QUEUE_CAPACITY];
+static lora_mac_event_t s_ev_queue[LINK_EV_QUEUE_CAPACITY];
 static uint8_t s_ev_q_head;
 static uint8_t s_ev_q_tail;
 static uint8_t s_ev_q_count;
@@ -275,7 +275,7 @@ static uint8_t s_ev_q_count;
 /* Tiny LFSR for jitter (no stdlib rand). */
 /* Link event ring buffer (avoid dropping multi-events like JoinAccept + AlarmStop). */
 #define LINK_EV_QUEUE_CAPACITY (8U)
-static lora_link_event_t s_ev_queue[LINK_EV_QUEUE_CAPACITY];
+static lora_mac_event_t s_ev_queue[LINK_EV_QUEUE_CAPACITY];
 static uint8_t s_ev_q_head;
 static uint8_t s_ev_q_tail;
 static uint8_t s_ev_q_count;
@@ -367,7 +367,7 @@ static uint8_t buf_is_all_zero(const uint8_t *p, uint8_t len)
     return 1U;
 }
 
-void lora_link_init(void)
+void lora_mac_init(void)
 {
     uint8_t tmp_pan_id[6];
     uint8_t tmp_seri_ed[6];
@@ -477,12 +477,12 @@ void lora_link_init(void)
 
 }
 
-uint8_t lora_link_is_rtc_synced(void)
+uint8_t lora_mac_is_rtc_synced(void)
 {
     return s_rtc_synced;
 }
 
-void lora_link_set_join_mode(uint8_t on)
+void lora_mac_set_join_mode(uint8_t on)
 {
     s_join_mode = (on != 0U) ? 1U : 0U;
 
@@ -524,7 +524,7 @@ void lora_link_set_join_mode(uint8_t on)
     }
 }
 
-void lora_link_on_rtc_halfsec_tick(void)
+void lora_mac_on_rtc_halfsec_tick(void)
 {
     s_tick_pending = 1U;
 }
@@ -536,9 +536,9 @@ void lora_link_on_rtc_halfsec_tick(void)
  *          Ring buffer design allows multiple events (JoinAccept + AlarmStop) to be buffered.
  * @note Updates global event queue state variables (s_ev_q_tail, s_ev_q_count).
  */
-static void link_push_event(lora_link_event_t ev)
+static void link_push_event(lora_mac_event_t ev)
 {
-    if (ev == LORA_LINK_EVENT_NONE)
+    if (ev == lora_mac_EVENT_NONE)
     {
         return;
     }
@@ -553,22 +553,22 @@ static void link_push_event(lora_link_event_t ev)
     s_ev_q_count++;
 }
 
-lora_link_event_t lora_link_poll_event(void)
+lora_mac_event_t lora_mac_poll_event(void)
 {
     if (s_ev_q_count == 0U)
     {
-        return LORA_LINK_EVENT_NONE;
+        return lora_mac_EVENT_NONE;
     }
 
     {
-        lora_link_event_t ev = s_ev_queue[s_ev_q_head];
+        lora_mac_event_t ev = s_ev_queue[s_ev_q_head];
         s_ev_q_head = (uint8_t)((s_ev_q_head + 1U) % LINK_EV_QUEUE_CAPACITY);
         s_ev_q_count--;
         return ev;
     }
 }
 
-void lora_link_notify_local_alarm(void)
+void lora_mac_notify_local_alarm(void)
 {
     /* Alarm (ED->GW) must be retried every 1s until GW ACK is received. */
     s_alarm_event_pending = 1U;
@@ -585,7 +585,7 @@ void lora_link_notify_local_alarm(void)
     }
 }
 
-void lora_link_notify_local_alarm_cleared(void)
+void lora_mac_notify_local_alarm_cleared(void)
 {
     /* End-alarm (ED->GW) is Alarm Stop (CMD=0x04) and must be retried every 6.5s until ACK. */
     s_alarm_event_pending = 0U;
@@ -600,7 +600,7 @@ void lora_link_notify_local_alarm_cleared(void)
     }
 }
 
-void lora_link_send_heartbeat(void)
+void lora_mac_send_heartbeat(void)
 {
     if (s_in_operation != 0U)
     {
@@ -608,13 +608,13 @@ void lora_link_send_heartbeat(void)
     }
 }
 
-void lora_link_request_join(void)
+void lora_mac_request_join(void)
 {
     s_req_join = 1U;
     s_join_retry_due_halfsec = now_halfsec();
 }
 
-void lora_link_request_exit(void)
+void lora_mac_request_exit(void)
 {
     s_req_exit = 1U;
 }
@@ -751,7 +751,7 @@ static uint8_t link_try_start_tx_cmd(uint8_t cmd,
     return 1U;
 }
 
-void lora_link_run(void)
+void lora_mac_run(void)
 {
     uint32_t now;
 
@@ -765,7 +765,7 @@ void lora_link_run(void)
         {
             if (s_in_operation != 0U)
             {
-                link_push_event(LORA_LINK_EVENT_HEARTBEAT_DUE);
+                link_push_event(lora_mac_EVENT_HEARTBEAT_DUE);
             }
             schedule_next_heartbeat(now);
         }
@@ -780,7 +780,7 @@ void lora_link_run(void)
             if ((age > GW_LOST_TIMEOUT_HALFSEC) && (s_gw_lost_reported == 0U))
             {
                 s_gw_lost_reported = 1U;
-                link_push_event(LORA_LINK_EVENT_GW_LOST);
+                link_push_event(lora_mac_EVENT_GW_LOST);
             }
         }
 
@@ -799,7 +799,7 @@ void lora_link_run(void)
             }
             s_next_cad_halfsec = now + CAD_PERIOD_HALFSEC;
 
-            log_debug("lora_link_run: CAD requested now=%lu next=%lu",
+            log_debug("lora_mac_run: CAD requested now=%lu next=%lu",
                           (unsigned long)now,
                           (unsigned long)s_next_cad_halfsec);
         }
@@ -1139,7 +1139,7 @@ void lora_link_run(void)
                             if ((fr.payload_plain_len >= 12U) && (memcmp(&fr.payload[6], s_pan_id, 6) == 0))
                             {
                                 link_update_fcnt_down_from_payload(fr.payload, fr.payload_plain_len);
-                                link_push_event(LORA_LINK_EVENT_REMOTE_ALARM);
+                                link_push_event(lora_mac_EVENT_REMOTE_ALARM);
                             }
                         }
                         else if ((fr.cmd == EMIC_LORA_CMD_ALARM_STOP) && (fr.src_type == (uint8_t)EMIC_LORA_SRC_GW))
@@ -1148,7 +1148,7 @@ void lora_link_run(void)
                             if ((fr.payload_plain_len >= 12U) && (memcmp(&fr.payload[6], s_pan_id, 6) == 0))
                             {
                                 link_update_fcnt_down_from_payload(fr.payload, fr.payload_plain_len);
-                                link_push_event(LORA_LINK_EVENT_REMOTE_ALARM_STOP);
+                                link_push_event(lora_mac_EVENT_REMOTE_ALARM_STOP);
                             }
                         }
                         else if ((fr.cmd == EMIC_LORA_CMD_SILENCE) && (fr.src_type == (uint8_t)EMIC_LORA_SRC_GW))
@@ -1157,7 +1157,7 @@ void lora_link_run(void)
                             if ((fr.payload_plain_len >= 12U) && (memcmp(&fr.payload[6], s_pan_id, 6) == 0))
                             {
                                 link_update_fcnt_down_from_payload(fr.payload, fr.payload_plain_len);
-                                link_push_event(LORA_LINK_EVENT_REMOTE_SILENCE);
+                                link_push_event(lora_mac_EVENT_REMOTE_SILENCE);
                             }
                         }
                         else if ((fr.cmd == EMIC_LORA_CMD_JOIN_ACCEPT) && (fr.src_type == (uint8_t)EMIC_LORA_SRC_GW) && (fr.extend_len == 4U))
@@ -1193,7 +1193,7 @@ void lora_link_run(void)
                                 s_in_operation = 0U;
                                 s_req_join = 0U;
                                 s_join_retry_due_halfsec = 0UL;
-                                link_push_event(LORA_LINK_EVENT_JOIN_ACCEPTED);
+                                link_push_event(lora_mac_EVENT_JOIN_ACCEPTED);
                             }
                         }
                         else if ((fr.cmd == EMIC_LORA_CMD_ENTER_OPERATION) && (fr.src_type == (uint8_t)EMIC_LORA_SRC_GW))
@@ -1203,7 +1203,7 @@ void lora_link_run(void)
                             {
                                 s_joined = 1U;
                                 s_in_operation = 1U;
-                                link_push_event(LORA_LINK_EVENT_ENTER_OPERATION);
+                                link_push_event(lora_mac_EVENT_ENTER_OPERATION);
 
                                 /* Kick an immediate heartbeat after entering operation. */
                                 s_req_heartbeat = 1U;
@@ -1236,7 +1236,7 @@ void lora_link_run(void)
                             /* Use pairing/default PanID after exit (for next Join mode). */
                             memcpy(s_pan_id, APP_PAN_ID, sizeof(s_pan_id));
 
-                            link_push_event(LORA_LINK_EVENT_EXIT_GW);
+                            link_push_event(lora_mac_EVENT_EXIT_GW);
                         }
                         else if ((fr.cmd == EMIC_LORA_CMD_TEST_ED) && (fr.src_type == (uint8_t)EMIC_LORA_SRC_GW))
                         {
@@ -1245,7 +1245,7 @@ void lora_link_run(void)
                             {
                                 link_update_fcnt_down_from_payload(fr.payload, fr.payload_plain_len);
                             }
-                            link_push_event(LORA_LINK_EVENT_TEST_ED);
+                            link_push_event(lora_mac_EVENT_TEST_ED);
                         }
                         else if ((fr.cmd == EMIC_LORA_CMD_ACK) && (fr.src_type == (uint8_t)EMIC_LORA_SRC_GW) && (fr.extend_len == 4U))
                         {
@@ -1341,7 +1341,7 @@ void lora_link_run(void)
     (void)s_last_wakeup_count;
 }
 
-uint8_t lora_link_is_gw_online(void)
+uint8_t lora_mac_is_gw_online(void)
 {
     if (s_gw_seen_once == 0U)
     {
@@ -1355,7 +1355,7 @@ uint8_t lora_link_is_gw_online(void)
     }
 }
 
-uint32_t lora_link_get_gw_last_seen_age_s(void)
+uint32_t lora_mac_get_gw_last_seen_age_s(void)
 {
     if (s_gw_seen_once == 0U)
     {
@@ -1369,7 +1369,7 @@ uint32_t lora_link_get_gw_last_seen_age_s(void)
     }
 }
 
-uint8_t lora_link_is_joined(void)
+uint8_t lora_mac_is_joined(void)
 {
     return (uint8_t)(s_joined != 0U ? 1U : 0U);
 }

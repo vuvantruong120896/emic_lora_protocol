@@ -81,7 +81,7 @@ void sx1262_init(const sx1262_config_t *cfg);
  * @details Safe to call when radio is idle (not in TX/RX/CAD). Allows fast channel switching
  *          without reconfiguring spreading factor, bandwidth, or coding rate.
  * @return None; assumes caller has verified radio is idle (radio_is_busy() == 0).
- * @note Called when lora_link changes channels for CAD/RX/TX operations.
+ * @note Called when lora_mac changes channels for CAD/RX/TX operations.
  */
 void sx1262_set_rf_frequency(uint32_t rf_freq_hz);
 

@@ -28,7 +28,7 @@ flowchart TD
 
   subgraph LINK[Layer 5: MAC]
     L0["lora_stack (facade)"]
-    L1["lora_link / MAC (internal)"]
+    L1["lora_mac / MAC (internal)"]
   end
 
   subgraph PROTO[Layer 4: protocol]
@@ -195,7 +195,7 @@ Ghi chú: phần này là **internal detail** phía sau facade `lora_stack`.
 
 ```mermaid
 sequenceDiagram
-  participant MAC as lora_link / MAC (internal)
+  participant MAC as lora_mac / MAC (internal)
   participant RADIO as radio_if (internal)
 
   Note over MAC: Periodic CAD schedule (every ~2s)

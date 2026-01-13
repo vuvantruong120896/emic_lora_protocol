@@ -295,8 +295,8 @@
             <Path>src\user\hal\hal_uart.h</Path>
           </Category>
           <Category Name="link">
-            <Path>src\user\link\lora_link.c</Path>
-            <Path>src\user\link\lora_link.h</Path>
+            <Path>src\user\mac\lora_mac.c</Path>
+            <Path>src\user\mac\lora_mac.h</Path>
             <Path>src\user\link\lora_stack.c</Path>
             <Path>src\user\link\lora_stack.h</Path>
           </Category>

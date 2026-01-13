@@ -18,8 +18,8 @@ Workspace hiện có 3 khối chính:
 
 Nhận xét:
 
-- `src/user/` hiện chính là “source of truth” cho toàn bộ stack; về boundary: **app/services chỉ gọi `lora_stack` (facade public)**, còn `lora_link`/`radio_if`/`sx1262` là **internal detail**.
-- Việc tách `smc_gen/` và `user/` giúp tránh sửa nhầm file generated, đồng thời build system rõ ràng hơn.- **Note:** `lora_link` là MAC layer implementation (xem [emic_lora_stack_architecture.md](emic_lora_stack_architecture.md) Mục 3).
+- `src/user/` hiện chính là "source of truth" cho toàn bộ stack; về boundary: **app/services chỉ gọi `lora_stack` (facade public)**, còn `lora_mac`/`radio_if`/`sx1262` là **internal detail**.
+- Việc tách `smc_gen/` và `user/` giúp tránh sửa nhầm file generated, đồng thời build system rõ ràng hơn.- **Note:** `lora_mac` là MAC layer implementation (xem [emic_lora_stack_architecture.md](emic_lora_stack_architecture.md) Mục 3).
 ### 1.2 `HardwareDebug/` (khả năng cao là build output)
 
 - Có `HardwareDebug/src/*` nhưng chủ yếu là `.obj/.d/.ud` (binary artifacts), không phải `.c/.h` nguồn.
@@ -137,10 +137,10 @@ Ghi chú: đây là **internal detail** phía sau facade `lora_stack` (app/servi
 - `src/user/utils/**` → Utils/common
 - `src/user/drv/**` → Layer 3 (Drivers)
 - `src/user/radio/**` → Layer 4 (PHY/Radio, internal)
-- `src/user/link/**` + `src/user/protocol/**` → Layer 5 (MAC + Protocol, internal detail behind facade)
-  - **Future refactor proposal:** Rename `src/user/link/` → `src/user/mac/` để chuẩn hóa terminology
+- `src/user/mac/**` + `src/user/protocol/**` → Layer 5 (MAC + Protocol, internal detail behind facade)
+  - **Future refactor proposal:** Rename `src/user/mac/` files to `src/user/mac/lora_mac_*` (already done for folder name)
   - **Protocol layer files:** `emic_lora_protocol.c/h` (message types, nonce builder)
-  - **MAC layer files:** `lora_link.c/h` (frame format, ACK+retry, CAD paging)
+  - **MAC layer files:** `lora_mac.c/h` (frame format, ACK+retry, CAD paging)
   - **Facade:** `src/user/link/lora_stack.*` (public API) → future: `src/user/mac/lora_stack.*`
 - `src/user/services/**` → Layer 6 (Services)
 - `src/user/app/**` → Layer 7 (Application)
@@ -166,7 +166,7 @@ src/
 
   link/
     lora_stack.c/h
-    lora_link.c/h (internal)
+    lora_mac.c/h (internal)
     frame_codec.c/h
     crypto_ccm.c/h
     cad_paging.c/h

@@ -5,7 +5,7 @@
  *          join mode, and normal operation. Manages state transitions and actions:
  *          - Stores alarm start time in NV store (fire detection timestamp)
  *          - Posts events to alarm_service for output control
- *          - Coordinates with lora_link/lora_stack for heartbeat and join
+ *          - Coordinates with lora_mac/lora_stack for heartbeat and join
  *          - Enforces join mode 2-minute timeout and join-only restrictions
  * @author EMIC Team
  * @version 1.0.0

@@ -10,7 +10,7 @@ This repo implements the **Node firmware** (RL78 + SX1262). The earlier "product
 ## What is implemented today (runtime-complete)
 - `src/user/app/`: `app_main.c` + `app_config.*` (Layer 7: Application logic)
 - `src/user/services/`: alarm + smoke + power + heartbeat wrappers (Layer 6: Domain services)
-- `src/user/link/`: `lora_stack.*` is the public facade for app/services; `lora_link.c` contains CAD paging + frame handling + TX queue
+- `src/user/mac/`: `lora_stack.*` is the public facade for app/services; `lora_mac.c` contains CAD paging + frame handling + TX queue
   - **Layer 5: MAC Layer** (xem [emic_lora_stack_architecture.md](emic_lora_stack_architecture.md) Mục 3): frame encode/decode, ACK + retry mechanism, link reliability, CAD paging state machine
   - **Layer 4: Protocol Layer** (xem [emic_lora_stack_architecture.md](emic_lora_stack_architecture.md) Mục 4): **AES-128-CCM encryption + authentication**, anti-replay check (msg_id strictly monotonic, window=1), message type handling, nonce construction
 - `src/user/protocol/`: `emic_lora_protocol.*` (Protocol layer: message types, crypto nonce builder), `emic_lora_crypto.*` (AES-128-CCM per NIST SP 800-38C, replaces old AES-ECB + CRC16)
@@ -20,7 +20,7 @@ This repo implements the **Node firmware** (RL78 + SX1262). The earlier "product
 
 ## Why the proposal looked "bigger"
 The proposal also suggested future splits like:
-- `cad_paging.c/h` separated from `lora_link.c` (improve **MAC Layer** maintainability per [emic_lora_stack_architecture.md](emic_lora_stack_architecture.md) Mục 3)
+- `cad_paging.c/h` separated from `lora_mac.c` (improve **MAC Layer** maintainability per [emic_lora_stack_architecture.md](emic_lora_stack_architecture.md) Mục 3)
 - `frame_codec.c/h` separated from `emic_lora_protocol.c/h` (improve **Protocol Layer** testability per [emic_lora_stack_architecture.md](emic_lora_stack_architecture.md) Mục 4)
 - richer drivers: real ADC battery measurement, smoke sensor filtering (Layer 3 expansion)
 - provisioning tooling for keys and persistent counter (NVM) with AES-128-CCM nonce state (per [emic_lora_protocol_frame_spec.md](emic_lora_protocol_frame_spec.md) Mục 8: anti-replay requirements)

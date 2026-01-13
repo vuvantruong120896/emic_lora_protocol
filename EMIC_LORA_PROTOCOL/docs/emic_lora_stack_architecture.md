@@ -37,7 +37,7 @@ EMIC LoRa Protocol tuân theo mô hình tham chiếu **IEEE 802.15.4** với 3 l
 │ - ACK + Retry Mechanism (link reliability)  │
 │ - MAC Sequence Number (per source)          │
 │ - CSMA/CA Channel Access                    │
-│ - File: user/link/lora_link.* (to be named  │
+│ - File: user/mac/lora_mac.* (renamed from  │
 │   user/mac/lora_mac.* in future)            │
 └──────────────────┬──────────────────────────┘
                    │
@@ -252,7 +252,7 @@ Result: 10 bytes, nhanh + hiệu quả
 
 ### 3.7 Code Reference (EMIC)
 
-**File**: `user/link/lora_link.c` (sẽ được đổi thành `user/mac/lora_mac.c`)
+**File**: `user/mac/lora_mac.c` (formerly `user/link/lora_link.c`)
 
 ```c
 // MAC layer responsibilities
@@ -675,9 +675,9 @@ src/user/
 │       • anti_replay_check()
 │       • message type handlers
 │
-├── link/                          ← NAMING: Will be 'mac/' in future
-│   ├── lora_link.h                ← MAC layer API
-│   └── lora_link.c                ← Implementation
+├── mac/                          ← MAC Layer (renamed from 'link/')
+│   ├── lora_mac.h                ← MAC layer API
+│   └── lora_mac.c                ← Implementation
 │       • send_frame_with_ack()
 │       • wait_ack_or_timeout()
 │       • retry_logic()
@@ -704,7 +704,7 @@ Protocol Layer (emic_lora_protocol.c)
     │ 2. Build nonce = ctx6 | src | msg_id | dir | key_id
     │ 3. AES-CCM encrypt payload
     ▼
-MAC Layer (lora_link.c)
+MAC Layer (lora_mac.c)
     │ 1. Add MAC header (src, dst, seq, len)
     │ 2. Build full frame (header + ciphertext + MIC)
     │ 3. Set ACK_REQ flag
@@ -735,7 +735,7 @@ PHY Layer (sx1262.c)
     │ 1. Read RX payload
     │ 2. Return to MAC layer
     ▼
-MAC Layer (lora_link.c)
+MAC Layer (lora_mac.c)
     │ 1. Parse MAC frame header
     │ 2. Address filter (is it for me?)
     │ 3. If ACK_REQ=1: send ACK to sender

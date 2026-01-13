@@ -4,7 +4,7 @@
  *
  * @details
  * - Provides a single abstraction layer for upper-layer code (app, services)
- * - Internal implementation (lora_link, radio_if) is hidden behind this facade
+ * - Internal implementation (lora_mac, radio_if) is hidden behind this facade
  * - Event-driven architecture with polled event queue
  * - Main entrypoint for RTC tick and DIO1 interrupt notifications
  *

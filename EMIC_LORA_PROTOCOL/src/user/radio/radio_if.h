@@ -81,7 +81,7 @@ void radio_request_tx(const uint8_t *payload, uint8_t len);
  * @return 1 if channel was set successfully, 0 if index is invalid or radio is busy.
  * @details Channel 0 is the 920.225 MHz meeting point; channels 1-8 are operational.
  *          Must be called when radio is idle (not in TX/RX/CAD operation).
- * @note Persisted to NV storage via lora_link layer for joined operation.
+ * @note Persisted to NV storage via lora_mac layer for joined operation.
  */
 uint8_t radio_set_channel(uint8_t channel_idx);
 
@@ -132,7 +132,7 @@ uint8_t radio_is_sleeping(void);
  * @return Number of bytes actually copied (0 if no valid RX data available).
  * @details Valid only after radio_poll_event() returns RADIO_EVENT_RX_DONE.
  *          Payload is copied from internal SX1262 RX FIFO.
- * @note Upper layer (lora_link) validates frame format and security after copying.
+ * @note Upper layer (lora_mac) validates frame format and security after copying.
  */
 uint8_t radio_read_rx_payload(uint8_t *dst, uint8_t dst_max);
 

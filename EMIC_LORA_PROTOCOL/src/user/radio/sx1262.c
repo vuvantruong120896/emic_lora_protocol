@@ -359,7 +359,7 @@ static void sx1262_apply_lora_params(void)
  * @param rf_freq_hz Target RF center frequency in Hz.
  * @details Ensures radio is awake and in standby, then sends SET_RF_FREQUENCY command.
  *          Updates s_cfg.rf_freq_hz for consistency.
- * @note Called by lora_link when changing operating channels.
+ * @note Called by lora_mac when changing operating channels.
  */
 void sx1262_set_rf_frequency(uint32_t rf_freq_hz)
 {

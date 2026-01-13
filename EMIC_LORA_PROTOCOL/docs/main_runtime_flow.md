@@ -215,20 +215,20 @@ sequenceDiagram
   participant RTC as RTC tick 0.5s
   participant APP as app_main
   participant STACK as lora_stack
-  participant MAC as lora_link/MAC (internal)
+  participant MAC as lora_mac/MAC (internal)
   participant RADIO as radio_if (internal)
   participant SX as sx1262 (internal)
 
   RTC-->>APP: tick observed in main
   APP->>STACK: lora_stack_on_rtc_halfsec_tick()
   APP->>STACK: lora_stack_run()
-  STACK->>MAC: lora_link_run() / MAC layer (internal)
+  STACK->>MAC: lora_mac_run() / MAC layer (internal)
   MAC->>RADIO: radio_request_cad(APP_CAD_SYMBOLS)
   RADIO->>SX: sx1262_start_cad()
 
   Note over SX,RADIO: DIO1 IRQ arrives (CAD_DONE / CAD_DETECTED)
   APP->>STACK: lora_stack_run()
-  STACK->>MAC: lora_link_run() / MAC layer (internal)
+  STACK->>MAC: lora_mac_run() / MAC layer (internal)
   MAC->>RADIO: radio_poll_event()
   RADIO-->>MAC: RADIO_EVENT_CAD_DONE
   STACK-->>APP: (no alarm)
@@ -289,7 +289,7 @@ Node sẽ set RTC theo giá trị `time_rtc` khi nhận được các frame hợ
 ```mermaid
 sequenceDiagram
   participant STACK as lora_stack
-  participant MAC as lora_link/MAC (internal)
+  participant MAC as lora_mac/MAC (internal)
   participant RADIO as radio_if (internal)
   participant SX as sx1262 (internal)
   participant PROTO as emic_lora_protocol
@@ -353,7 +353,7 @@ flowchart TD
 ```mermaid
 sequenceDiagram
   participant STACK as lora_stack
-  participant MAC as lora_link/MAC (internal)
+  participant MAC as lora_mac/MAC (internal)
   participant RADIO as radio_if (internal)
   participant SX as sx1262 (internal)
   participant PROTO as emic_lora_protocol
