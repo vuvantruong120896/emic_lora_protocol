@@ -910,7 +910,30 @@ Why unique?
 
 ---
 
-## 10. Terminology Reference (Tiếng Việt ↔ English)
+## 10. Cross-Reference to Frame Specification
+
+Để triển khai Protocol layer, xem [emic_lora_protocol_frame_spec.md](./emic_lora_protocol_frame_spec.md) cho chi tiết byte-level:
+
+| Khía Cạnh               | Trong Architecture.md (Phần này) | Trong Frame Spec                 |
+| ----------------------- | -------------------------------- | -------------------------------- |
+| **Frame format overview** | Phần 3 (diagram)                 | Phần 4 (serialization detail)   |
+| **Header fields**        | Phần 3 (brief)                   | Phần 5 (field-by-field spec)   |
+| **Encryption mechanism** | Phần 4.2 (policy)                | Phần 8 (AES-CCM algorithm)     |
+| **Nonce construction**   | Phần 9.3 (uniqueness)            | Phần 8.3 (layout + bit-level)  |
+| **Anti-replay logic**    | Phần 4.3 (window=1 policy)       | Phần 8.7 (implementation code) |
+| **ACK mechanism**        | Phần 3.3-3.4 (MAC layer)         | Phần 10 (TYPE=8 frame format)  |
+| **Message types**        | Phần 4.4 (19 types list)         | Phần 9 + Phụ lục (per-TYPE)   |
+
+**Workflow:**
+
+1. Hiểu **architecture** từ Phần 1-4 (tài liệu này)
+2. Tham khảo **byte-level spec** từ frame_spec.md
+3. Xem **code examples** trong frame_spec.md Phần 16 (serialization + decryption)
+4. Triển khai **per-TYPE handlers** từ frame_spec.md Phụ lục
+
+---
+
+## 11. Terminology Reference (Tiếng Việt ↔ English)
 
 | Tiếng Việt                                | English                           | Ký Hiệu      |
 | ------------------------------------------- | --------------------------------- | -------------- |
@@ -930,7 +953,7 @@ Why unique?
 
 ---
 
-## 11. References (Tham Chiếu)
+## 12. References (Tham Chiếu)
 
 - **IEEE 802.15.4**: Wireless Personal Area Networks (WPAN)
 - **LoRaWAN Specification** (The Things Network): https://lora-alliance.org
