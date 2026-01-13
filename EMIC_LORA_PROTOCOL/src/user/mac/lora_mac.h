@@ -67,7 +67,7 @@ void lora_mac_run(void);
  *
  * @return lora_mac_event_t Event (LORA_MAC_EVENT_NONE if no event pending)
  *
- * @note Internal function; events are mapped to lora_stack_event_t by facade.
+ * @note Internal function; exposed as public MAC layer API.
  */
 lora_mac_event_t lora_mac_poll_event(void);
 
@@ -147,5 +147,30 @@ uint8_t lora_mac_is_joined(void);
  * @return 1 if RTC time is synchronized (from GW time_rtc extend in JoinAccept/ACK), 0 otherwise
  */
 uint8_t lora_mac_is_rtc_synced(void);
+
+/**
+ * @brief Check if radio is currently busy (CAD/RX/TX in progress).
+ *
+ * @return 1 if radio busy, 0 if idle
+ *
+ * @note Used by power_service to decide HALT vs STOP power mode.
+ */
+uint8_t lora_mac_is_busy(void);
+
+/**
+ * @brief Put radio into sleep mode (warm-start ready).
+ *
+ * @note Called when transitioning to STOP power mode; radio will wake automatically on next CAD/RX/TX request.
+ */
+void lora_mac_sleep_if_idle(void);
+
+/**
+ * @brief Handle SX1262 DIO1 interrupt (called from ISR context).
+ *
+ * @note
+ * - Called from INTP0 ISR (DIO1) via SMC INTC user handler
+ * - Only sets a pending flag; actual processing deferred to main loop lora_mac_run()
+ */
+void lora_mac_on_dio1_irq(void);
 
 #endif

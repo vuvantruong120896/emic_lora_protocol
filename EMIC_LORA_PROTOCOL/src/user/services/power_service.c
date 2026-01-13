@@ -16,7 +16,7 @@
 #include "r_smc_entry.h"
 
 #include "alarm_service.h"
-#include "../mac/lora_stack.h"
+#include "../mac/lora_mac.h"
 
 #include "../drv/button/button.h"
 
@@ -61,7 +61,7 @@ void power_service_idle(void)
     {
         HALT();
     }
-    else if ((lora_stack_is_busy() != 0U) && (APP_STOP_DURING_RADIO == 0))
+    else if ((lora_mac_is_busy() != 0U) && (APP_STOP_DURING_RADIO == 0))
     {
         HALT();
     }
@@ -75,7 +75,7 @@ void power_service_idle(void)
         /* When fully idle and about to STOP, also put SX1262 into sleep to minimize radio current.
          * Next CAD/RX/TX request will wake it up automatically.
          */
-        lora_stack_sleep_if_idle();
+        lora_mac_sleep_if_idle();
         STOP();
     }
 }

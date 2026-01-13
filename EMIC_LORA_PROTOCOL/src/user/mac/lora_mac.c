@@ -21,6 +21,7 @@
 
 #include "../hal/hal_rtc.h"
 #include "../radio/radio_if.h"
+#include "../radio/sx1262.h"
 #include "../app/app_config.h"
 
 #include "../utils/log_control.h"
@@ -1372,4 +1373,19 @@ uint32_t lora_mac_get_gw_last_seen_age_s(void)
 uint8_t lora_mac_is_joined(void)
 {
     return (uint8_t)(s_joined != 0U ? 1U : 0U);
+}
+
+uint8_t lora_mac_is_busy(void)
+{
+    return radio_is_busy();
+}
+
+void lora_mac_sleep_if_idle(void)
+{
+    radio_sleep_if_idle();
+}
+
+void lora_mac_on_dio1_irq(void)
+{
+    sx126x_dio1_irq_handler();
 }

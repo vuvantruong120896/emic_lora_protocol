@@ -297,8 +297,6 @@
           <Category Name="mac">
             <Path>src\user\mac\lora_mac.c</Path>
             <Path>src\user\mac\lora_mac.h</Path>
-            <Path>src\user\mac\lora_stack.c</Path>
-            <Path>src\user\mac\lora_stack.h</Path>
           </Category>
           <Category Name="protocol">
             <Path>src\user\protocol\emic_lora_crc16_modbus.c</Path>
@@ -3080,7 +3078,6 @@
           <Path>HardwareDebug\hal_timer.obj</Path>
           <Path>HardwareDebug\hal_uart.obj</Path>
           <Path>HardwareDebug\lora_mac.obj</Path>
-          <Path>HardwareDebug\lora_stack.obj</Path>
           <Path>HardwareDebug\emic_lora_crc16_modbus.obj</Path>
           <Path>HardwareDebug\emic_lora_crypto.obj</Path>
           <Path>HardwareDebug\emic_lora_protocol.obj</Path>

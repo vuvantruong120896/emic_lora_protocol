@@ -11,7 +11,7 @@
 
 #include "heartbeat_service.h"
 
-#include "../mac/lora_stack.h"
+#include "../mac/lora_mac.h"
 
 void heartbeat_service_init(void)
 {
@@ -21,5 +21,5 @@ void heartbeat_service_init(void)
 void heartbeat_service_send(void)
 {
     /* Forward to lora_stack facade. */
-    lora_stack_send_heartbeat();
+    lora_mac_send_heartbeat();
 }
