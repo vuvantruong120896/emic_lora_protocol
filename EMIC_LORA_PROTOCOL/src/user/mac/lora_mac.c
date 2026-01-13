@@ -1,6 +1,6 @@
 /**
  * @file lora_mac.c
- * @brief Implementation of LoRa link layer: MAC state machine, CAD paging, and frame handling.
+ * @brief Implementation of LoRa MAC layer: MAC state machine, CAD paging, and frame handling.
  *
  * @details
  * - CAD paging state machine with configurable scan period
@@ -49,8 +49,8 @@
 #define GW_LOST_TIMEOUT_HALFSEC    ((uint32_t)APP_GW_LOST_TIMEOUT_S * (uint32_t)HALFSEC_PER_SEC)
 
 /**
- * @brief Link layer MAC state enumeration.
- * @details Tracks the logical state of the link layer state machine:
+ * @brief MAC layer state enumeration.
+ * @details Tracks the logical state of the MAC layer state machine:
  *   - IDLE: No activity scheduled
  *   - WAIT_CAD: Waiting for CAD (Channel Activity Detection) result
  *   - WAIT_RX: Listening for downlink frames (RX window open)
@@ -58,11 +58,11 @@
  */
 typedef enum
 {
-    LINK_STATE_IDLE = 0,
-    LINK_STATE_WAIT_CAD,
-    LINK_STATE_WAIT_RX,
-    LINK_STATE_WAIT_TX
-} link_state_t;
+    MAC_STATE_IDLE = 0,
+    MAC_STATE_WAIT_CAD,
+    MAC_STATE_WAIT_RX,
+    MAC_STATE_WAIT_TX
+} mac_state_t;
 
 /**
  * @brief TX ACK tracking enumeration.
@@ -94,7 +94,7 @@ static uint8_t s_pan_id[6];
 /* Join / operation state */
 /** @brief Flag indicating device is joined to gateway (1=joined, 0=not joined). */
 static uint8_t s_joined;
-/** @brief Flag indicating link layer is in normal operation (1=operating, 0=idle/join-mode). */
+/** @brief Flag indicating MAC layer is in normal operation (1=operating, 0=idle/join-mode). */
 static uint8_t s_in_operation;
 /** @brief Flag indicating user has requested join mode activation. */
 static uint8_t s_req_join;
@@ -122,8 +122,8 @@ static volatile uint8_t s_tick_pending;
 /** @brief Last recorded RTC wakeup counter value (for elapsed time calculation). */
 static uint32_t s_last_wakeup_count;
 
-/** @brief Current link layer state machine state (IDLE/WAIT_CAD/WAIT_RX/WAIT_TX). */
-static link_state_t s_state;
+/** @brief Current MAC layer state machine state (IDLE/WAIT_CAD/WAIT_RX/WAIT_TX). */
+static mac_state_t s_state;
 
 /** @brief Due time for next CAD (Channel Activity Detection) scan (in half-seconds). */
 static uint32_t s_next_cad_halfsec;
@@ -160,7 +160,7 @@ static uint8_t s_tx_ack_req_inflight;
 /* ACK waiting / retry policy.
  * ACK requirement is defined by protocol (frame flag EMIC_LORA_FLAG_ACK_REQ).
  */
-/** @brief Flag indicating link layer is waiting for ACK from gateway. */
+/** @brief Flag indicating MAC layer is waiting for ACK from gateway. */
 static uint8_t s_ack_waiting;
 /** @brief Type of ACK being awaited (HEARTBEAT/ALARM/ALARM_STOP/EXIT). */
 static tx_ack_kind_t s_ack_kind;
@@ -223,7 +223,7 @@ static uint32_t read_u32_be(const uint8_t *p)
  * @details Attempts to set RTC to the provided time. If successful, marks RTC as synchronized.
  * @note Updates global s_rtc_synced flag on successful sync.
  */
-static void link_try_apply_time_rtc(uint32_t seconds)
+static void mac_try_apply_time_rtc(uint32_t seconds)
 {
     hal_rtc_time_t t;
     hal_rtc_seconds_to_time(seconds, &t);
@@ -242,7 +242,7 @@ static void link_try_apply_time_rtc(uint32_t seconds)
  *          (prevents replay attacks).
  * @note Updates global NV store via nv_store_set_fcnt_down().
  */
-static void link_update_fcnt_down_from_payload(const uint8_t *payload, uint8_t payload_plain_len)
+static void mac_update_fcnt_down_from_payload(const uint8_t *payload, uint8_t payload_plain_len)
 {
     if (payload == NULL)
     {
@@ -265,17 +265,17 @@ static void link_update_fcnt_down_from_payload(const uint8_t *payload, uint8_t p
     }
 }
 
-/* Link event ring buffer (avoid dropping multi-events like JoinAccept + AlarmStop). */
-#define LINK_EV_QUEUE_CAPACITY (8U)
-static lora_mac_event_t s_ev_queue[LINK_EV_QUEUE_CAPACITY];
+/* MAC event ring buffer (avoid dropping multi-events like JoinAccept + AlarmStop). */
+#define MAC_EV_QUEUE_CAPACITY (8U)
+static lora_mac_event_t s_ev_queue[MAC_EV_QUEUE_CAPACITY];
 static uint8_t s_ev_q_head;
 static uint8_t s_ev_q_tail;
 static uint8_t s_ev_q_count;
 
 /* Tiny LFSR for jitter (no stdlib rand). */
-/* Link event ring buffer (avoid dropping multi-events like JoinAccept + AlarmStop). */
-#define LINK_EV_QUEUE_CAPACITY (8U)
-static lora_mac_event_t s_ev_queue[LINK_EV_QUEUE_CAPACITY];
+/* MAC event ring buffer (avoid dropping multi-events like JoinAccept + AlarmStop). */
+#define MAC_EV_QUEUE_CAPACITY (8U)
+static lora_mac_event_t s_ev_queue[MAC_EV_QUEUE_CAPACITY];
 static uint8_t s_ev_q_head;
 static uint8_t s_ev_q_tail;
 static uint8_t s_ev_q_count;
@@ -375,7 +375,7 @@ void lora_mac_init(void)
     s_tick_pending = 0U;
     s_last_wakeup_count = now_halfsec();
 
-    s_state = LINK_STATE_IDLE;
+    s_state = MAC_STATE_IDLE;
 
     /* Own radio initialization so upper layers don't depend on radio_if directly. */
     radio_init();
@@ -536,20 +536,20 @@ void lora_mac_on_rtc_halfsec_tick(void)
  *          Ring buffer design allows multiple events (JoinAccept + AlarmStop) to be buffered.
  * @note Updates global event queue state variables (s_ev_q_tail, s_ev_q_count).
  */
-static void link_push_event(lora_mac_event_t ev)
+static void mac_push_event(lora_mac_event_t ev)
 {
-    if (ev == lora_mac_EVENT_NONE)
+    if (ev == LORA_MAC_EVENT_NONE)
     {
         return;
     }
 
-    if (s_ev_q_count >= LINK_EV_QUEUE_CAPACITY)
+    if (s_ev_q_count >= MAC_EV_QUEUE_CAPACITY)
     {
         return;
     }
 
     s_ev_queue[s_ev_q_tail] = ev;
-    s_ev_q_tail = (uint8_t)((s_ev_q_tail + 1U) % LINK_EV_QUEUE_CAPACITY);
+    s_ev_q_tail = (uint8_t)((s_ev_q_tail + 1U) % MAC_EV_QUEUE_CAPACITY);
     s_ev_q_count++;
 }
 
@@ -557,12 +557,12 @@ lora_mac_event_t lora_mac_poll_event(void)
 {
     if (s_ev_q_count == 0U)
     {
-        return lora_mac_EVENT_NONE;
+        return LORA_MAC_EVENT_NONE;
     }
 
     {
         lora_mac_event_t ev = s_ev_queue[s_ev_q_head];
-        s_ev_q_head = (uint8_t)((s_ev_q_head + 1U) % LINK_EV_QUEUE_CAPACITY);
+        s_ev_q_head = (uint8_t)((s_ev_q_head + 1U) % MAC_EV_QUEUE_CAPACITY);
         s_ev_q_count--;
         return ev;
     }
@@ -696,11 +696,11 @@ static uint8_t ack_should_retry(uint32_t now)
  * @param includes_fcnt Flag indicating payload includes frame counter.
  * @return 1 if TX was successfully started, 0 if unable to transmit now.
  * @details Builds complete LoRa frame using emic_lora_build_frame(), then requests
- *          radio transmission. Updates link state to WAIT_TX and inflight tracking.
- *          Returns 0 if link state is not IDLE (already transmitting or RX/CAD active).
+ *          radio transmission. Updates MAC state to WAIT_TX and inflight tracking.
+ *          Returns 0 if MAC state is not IDLE (already transmitting or RX/CAD active).
  * @note Updates global state variables (s_state, s_tx_inflight, s_tx_fcnt_inflight).
  */
-static uint8_t link_try_start_tx_cmd(uint8_t cmd,
+static uint8_t mac_try_start_tx_cmd(uint8_t cmd,
                                      uint8_t src_type,
                                      uint8_t dst_type,
                                      const uint8_t *payload_plain,
@@ -713,7 +713,7 @@ static uint8_t link_try_start_tx_cmd(uint8_t cmd,
     uint32_t fcnt;
     uint8_t n;
 
-    if (s_state != LINK_STATE_IDLE)
+    if (s_state != MAC_STATE_IDLE)
     {
         return 0U;
     }
@@ -740,11 +740,11 @@ static uint8_t link_try_start_tx_cmd(uint8_t cmd,
         return 0U;
     }
 
-    /* Protocol decides ACK policy; link layer executes it. */
+    /* Protocol decides ACK policy; MAC layer executes it. */
     s_tx_ack_req_inflight = ((frame[1] & EMIC_LORA_FLAG_ACK_REQ) != 0U) ? 1U : 0U;
 
     radio_request_tx(frame, n);
-    s_state = LINK_STATE_WAIT_TX;
+    s_state = MAC_STATE_WAIT_TX;
     s_tx_inflight = 1U;
     s_tx_fcnt_inflight = fcnt;
     s_tx_includes_fcnt = (includes_fcnt != 0U) ? 1U : 0U;
@@ -765,7 +765,7 @@ void lora_mac_run(void)
         {
             if (s_in_operation != 0U)
             {
-                link_push_event(lora_mac_EVENT_HEARTBEAT_DUE);
+                mac_push_event(LORA_MAC_EVENT_HEARTBEAT_DUE);
             }
             schedule_next_heartbeat(now);
         }
@@ -780,7 +780,7 @@ void lora_mac_run(void)
             if ((age > GW_LOST_TIMEOUT_HALFSEC) && (s_gw_lost_reported == 0U))
             {
                 s_gw_lost_reported = 1U;
-                link_push_event(lora_mac_EVENT_GW_LOST);
+                mac_push_event(LORA_MAC_EVENT_GW_LOST);
             }
         }
 
@@ -792,10 +792,10 @@ void lora_mac_run(void)
         if (now >= s_next_cad_halfsec)
         {
             /* Request CAD periodically (nominal ~2 seconds) */
-            if ((s_join_mode == 0U) && (s_state == LINK_STATE_IDLE))
+            if ((s_join_mode == 0U) && (s_state == MAC_STATE_IDLE))
             {
                 radio_request_cad(APP_CAD_SYMBOLS);
-                s_state = LINK_STATE_WAIT_CAD;
+                s_state = MAC_STATE_WAIT_CAD;
             }
             s_next_cad_halfsec = now + CAD_PERIOD_HALFSEC;
 
@@ -808,7 +808,7 @@ void lora_mac_run(void)
     /* Start any pending TX when radio is idle.
      * Priority: alarm_event (local retx) > alarm_seen > heartbeat
      */
-    if (s_state == LINK_STATE_IDLE)
+    if (s_state == MAC_STATE_IDLE)
     {
         /* Retry current ACK-required transaction when due. */
         if (s_ack_waiting)
@@ -834,7 +834,7 @@ void lora_mac_run(void)
                     memcpy(&pl[19], APP_FIRM_ID, 3);
                     pl[22] = (uint8_t)APP_DEVICE_TYPE;
 
-                    if (link_try_start_tx_cmd(EMIC_LORA_CMD_HEARTBEAT,
+                    if (mac_try_start_tx_cmd(EMIC_LORA_CMD_HEARTBEAT,
                                               (uint8_t)EMIC_LORA_SRC_ED,
                                               (uint8_t)EMIC_LORA_DST_GW,
                                               pl,
@@ -858,7 +858,7 @@ void lora_mac_run(void)
                     memcpy(&pl[6], s_pan_id, 6);
                     write_u32_be(&pl[12], fcnt);
 
-                    if (link_try_start_tx_cmd(EMIC_LORA_CMD_ALARM,
+                    if (mac_try_start_tx_cmd(EMIC_LORA_CMD_ALARM,
                                               (uint8_t)EMIC_LORA_SRC_ED,
                                               (uint8_t)EMIC_LORA_DST_GW,
                                               pl,
@@ -882,7 +882,7 @@ void lora_mac_run(void)
                     memcpy(&pl[6], s_pan_id, 6);
                     write_u32_be(&pl[12], fcnt);
 
-                    if (link_try_start_tx_cmd(EMIC_LORA_CMD_ALARM_STOP,
+                    if (mac_try_start_tx_cmd(EMIC_LORA_CMD_ALARM_STOP,
                                               (uint8_t)EMIC_LORA_SRC_ED,
                                               (uint8_t)EMIC_LORA_DST_GW,
                                               pl,
@@ -906,7 +906,7 @@ void lora_mac_run(void)
                     memcpy(&pl[6], s_pan_id, 6);
                     write_u32_be(&pl[12], fcnt);
 
-                    if (link_try_start_tx_cmd(EMIC_LORA_CMD_EXIT,
+                    if (mac_try_start_tx_cmd(EMIC_LORA_CMD_EXIT,
                                               (uint8_t)EMIC_LORA_SRC_ED,
                                               (uint8_t)EMIC_LORA_DST_GW,
                                               pl,
@@ -943,7 +943,7 @@ void lora_mac_run(void)
                 uint8_t pl6[6];
                 memcpy(pl6, s_seri_ed, 6);
 
-                if (link_try_start_tx_cmd(EMIC_LORA_CMD_JOIN_REQUEST,
+                if (mac_try_start_tx_cmd(EMIC_LORA_CMD_JOIN_REQUEST,
                                           (uint8_t)EMIC_LORA_SRC_ED,
                                           (uint8_t)EMIC_LORA_DST_GW,
                                           pl6,
@@ -979,7 +979,7 @@ void lora_mac_run(void)
             memcpy(&pl[6], s_pan_id, 6);
             write_u32_be(&pl[12], fcnt);
 
-            if (link_try_start_tx_cmd(EMIC_LORA_CMD_EXIT,
+            if (mac_try_start_tx_cmd(EMIC_LORA_CMD_EXIT,
                                       (uint8_t)EMIC_LORA_SRC_ED,
                                       (uint8_t)EMIC_LORA_DST_GW,
                                       pl,
@@ -1007,7 +1007,7 @@ void lora_mac_run(void)
                 memcpy(&pl[6], s_pan_id, 6);
                 write_u32_be(&pl[12], fcnt);
 
-                if (link_try_start_tx_cmd(EMIC_LORA_CMD_ALARM,
+                if (mac_try_start_tx_cmd(EMIC_LORA_CMD_ALARM,
                                           (uint8_t)EMIC_LORA_SRC_ED,
                                           (uint8_t)EMIC_LORA_DST_GW,
                                           pl,
@@ -1036,7 +1036,7 @@ void lora_mac_run(void)
                 memcpy(&pl[6], s_pan_id, 6);
                 write_u32_be(&pl[12], fcnt);
 
-                if (link_try_start_tx_cmd(EMIC_LORA_CMD_ALARM_STOP,
+                if (mac_try_start_tx_cmd(EMIC_LORA_CMD_ALARM_STOP,
                                           (uint8_t)EMIC_LORA_SRC_ED,
                                           (uint8_t)EMIC_LORA_DST_GW,
                                           pl,
@@ -1077,7 +1077,7 @@ void lora_mac_run(void)
             memcpy(&pl[19], APP_FIRM_ID, 3);
             pl[22] = (uint8_t)APP_DEVICE_TYPE;
 
-            if (link_try_start_tx_cmd(EMIC_LORA_CMD_HEARTBEAT,
+            if (mac_try_start_tx_cmd(EMIC_LORA_CMD_HEARTBEAT,
                                       (uint8_t)EMIC_LORA_SRC_ED,
                                       (uint8_t)EMIC_LORA_DST_GW,
                                       pl,
@@ -1105,13 +1105,13 @@ void lora_mac_run(void)
                 log_debug("%s", "radio: CAD_DETECTED -> request RX");
                 /* CAD hit -> RX short window */
                 radio_request_rx(APP_RX_AFTER_CAD_MS);
-                s_state = LINK_STATE_WAIT_RX;
+                s_state = MAC_STATE_WAIT_RX;
             }
             else if (rev == RADIO_EVENT_CAD_DONE)
             {
                 log_debug("%s", "radio: CAD_DONE");
                 /* No activity */
-                s_state = LINK_STATE_IDLE;
+                s_state = MAC_STATE_IDLE;
             }
             else if (rev == RADIO_EVENT_RX_DONE)
             {
@@ -1138,8 +1138,8 @@ void lora_mac_run(void)
                              */
                             if ((fr.payload_plain_len >= 12U) && (memcmp(&fr.payload[6], s_pan_id, 6) == 0))
                             {
-                                link_update_fcnt_down_from_payload(fr.payload, fr.payload_plain_len);
-                                link_push_event(lora_mac_EVENT_REMOTE_ALARM);
+                                mac_update_fcnt_down_from_payload(fr.payload, fr.payload_plain_len);
+                                mac_push_event(LORA_MAC_EVENT_REMOTE_ALARM);
                             }
                         }
                         else if ((fr.cmd == EMIC_LORA_CMD_ALARM_STOP) && (fr.src_type == (uint8_t)EMIC_LORA_SRC_GW))
@@ -1147,8 +1147,8 @@ void lora_mac_run(void)
                             /* Alarm Stop */
                             if ((fr.payload_plain_len >= 12U) && (memcmp(&fr.payload[6], s_pan_id, 6) == 0))
                             {
-                                link_update_fcnt_down_from_payload(fr.payload, fr.payload_plain_len);
-                                link_push_event(lora_mac_EVENT_REMOTE_ALARM_STOP);
+                                mac_update_fcnt_down_from_payload(fr.payload, fr.payload_plain_len);
+                                mac_push_event(LORA_MAC_EVENT_REMOTE_ALARM_STOP);
                             }
                         }
                         else if ((fr.cmd == EMIC_LORA_CMD_SILENCE) && (fr.src_type == (uint8_t)EMIC_LORA_SRC_GW))
@@ -1156,8 +1156,8 @@ void lora_mac_run(void)
                             /* Silence */
                             if ((fr.payload_plain_len >= 12U) && (memcmp(&fr.payload[6], s_pan_id, 6) == 0))
                             {
-                                link_update_fcnt_down_from_payload(fr.payload, fr.payload_plain_len);
-                                link_push_event(lora_mac_EVENT_REMOTE_SILENCE);
+                                mac_update_fcnt_down_from_payload(fr.payload, fr.payload_plain_len);
+                                mac_push_event(LORA_MAC_EVENT_REMOTE_SILENCE);
                             }
                         }
                         else if ((fr.cmd == EMIC_LORA_CMD_JOIN_ACCEPT) && (fr.src_type == (uint8_t)EMIC_LORA_SRC_GW) && (fr.extend_len == 4U))
@@ -1165,7 +1165,7 @@ void lora_mac_run(void)
                             /* JoinAccept payload: Seri(6) + NetID(6) + channel(1); ShortAddr omitted in V1. */
                             if ((fr.payload_plain_len >= 13U) && (memcmp(&fr.payload[0], s_seri_ed, 6) == 0))
                             {
-                                link_try_apply_time_rtc(read_u32_be(fr.extend));
+                                mac_try_apply_time_rtc(read_u32_be(fr.extend));
                                 memcpy(s_pan_id, &fr.payload[6], 6);
                                 nv_store_set_pan_id(s_pan_id);
                                 s_join_channel = fr.payload[12];
@@ -1193,7 +1193,7 @@ void lora_mac_run(void)
                                 s_in_operation = 0U;
                                 s_req_join = 0U;
                                 s_join_retry_due_halfsec = 0UL;
-                                link_push_event(lora_mac_EVENT_JOIN_ACCEPTED);
+                                mac_push_event(LORA_MAC_EVENT_JOIN_ACCEPTED);
                             }
                         }
                         else if ((fr.cmd == EMIC_LORA_CMD_ENTER_OPERATION) && (fr.src_type == (uint8_t)EMIC_LORA_SRC_GW))
@@ -1203,7 +1203,7 @@ void lora_mac_run(void)
                             {
                                 s_joined = 1U;
                                 s_in_operation = 1U;
-                                link_push_event(lora_mac_EVENT_ENTER_OPERATION);
+                                mac_push_event(LORA_MAC_EVENT_ENTER_OPERATION);
 
                                 /* Kick an immediate heartbeat after entering operation. */
                                 s_req_heartbeat = 1U;
@@ -1214,7 +1214,7 @@ void lora_mac_run(void)
                             /* Gateway requested exit */
                             if ((fr.payload_plain_len >= 12U) && (memcmp(&fr.payload[6], s_pan_id, 6) == 0))
                             {
-                                link_update_fcnt_down_from_payload(fr.payload, fr.payload_plain_len);
+                                mac_update_fcnt_down_from_payload(fr.payload, fr.payload_plain_len);
                             }
                             s_in_operation = 0U;
                             s_joined = 0U;
@@ -1236,16 +1236,16 @@ void lora_mac_run(void)
                             /* Use pairing/default PanID after exit (for next Join mode). */
                             memcpy(s_pan_id, APP_PAN_ID, sizeof(s_pan_id));
 
-                            link_push_event(lora_mac_EVENT_EXIT_GW);
+                            mac_push_event(LORA_MAC_EVENT_EXIT_GW);
                         }
                         else if ((fr.cmd == EMIC_LORA_CMD_TEST_ED) && (fr.src_type == (uint8_t)EMIC_LORA_SRC_GW))
                         {
                             /* Test ED / Test Alarm */
                             if ((fr.payload_plain_len >= 12U) && (memcmp(&fr.payload[6], s_pan_id, 6) == 0))
                             {
-                                link_update_fcnt_down_from_payload(fr.payload, fr.payload_plain_len);
+                                mac_update_fcnt_down_from_payload(fr.payload, fr.payload_plain_len);
                             }
-                            link_push_event(lora_mac_EVENT_TEST_ED);
+                            mac_push_event(LORA_MAC_EVENT_TEST_ED);
                         }
                         else if ((fr.cmd == EMIC_LORA_CMD_ACK) && (fr.src_type == (uint8_t)EMIC_LORA_SRC_GW) && (fr.extend_len == 4U))
                         {
@@ -1254,7 +1254,7 @@ void lora_mac_run(void)
                              */
                             if ((fr.payload_plain_len >= 16U) && (memcmp(&fr.payload[6], s_pan_id, 6) == 0))
                             {
-                                link_try_apply_time_rtc(read_u32_be(fr.extend));
+                                mac_try_apply_time_rtc(read_u32_be(fr.extend));
                                 uint32_t ack_fcnt = read_u32_be(&fr.payload[12]);
                                 if (s_ack_waiting && (ack_fcnt == s_ack_expected_fcnt))
                                 {
@@ -1286,7 +1286,7 @@ void lora_mac_run(void)
                         }
                     }
                 }
-                s_state = LINK_STATE_IDLE;
+                s_state = MAC_STATE_IDLE;
             }
             else if (rev == RADIO_EVENT_TX_DONE)
             {
@@ -1305,17 +1305,17 @@ void lora_mac_run(void)
                 {
                     s_rx_after_join_tx = 0U;
                     radio_request_rx(APP_RX_AFTER_JOIN_TX_MS);
-                    s_state = LINK_STATE_WAIT_RX;
+                    s_state = MAC_STATE_WAIT_RX;
                 }
                 /* After any uplink that requires ACK, open a short RX window for GW ACK. */
                 else if (s_ack_waiting)
                 {
                     radio_request_rx(APP_RX_AFTER_TX_MS);
-                    s_state = LINK_STATE_WAIT_RX;
+                    s_state = MAC_STATE_WAIT_RX;
                 }
                 else
                 {
-                    s_state = LINK_STATE_IDLE;
+                    s_state = MAC_STATE_IDLE;
                 }
             }
             else if ((rev == RADIO_EVENT_TIMEOUT) || (rev == RADIO_EVENT_ERROR))
@@ -1327,13 +1327,13 @@ void lora_mac_run(void)
                  */
                 s_tx_inflight = 0U;
                 s_tx_includes_fcnt = 0U;
-                s_state = LINK_STATE_IDLE;
+                s_state = MAC_STATE_IDLE;
             }
             else
             {
                 s_tx_inflight = 0U;
                 s_tx_includes_fcnt = 0U;
-                s_state = LINK_STATE_IDLE;
+                s_state = MAC_STATE_IDLE;
             }
         }
     }

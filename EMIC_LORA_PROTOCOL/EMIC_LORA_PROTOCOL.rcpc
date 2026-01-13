@@ -294,11 +294,11 @@
             <Path>src\user\hal\hal_uart.c</Path>
             <Path>src\user\hal\hal_uart.h</Path>
           </Category>
-          <Category Name="link">
+          <Category Name="mac">
             <Path>src\user\mac\lora_mac.c</Path>
             <Path>src\user\mac\lora_mac.h</Path>
-            <Path>src\user\link\lora_stack.c</Path>
-            <Path>src\user\link\lora_stack.h</Path>
+            <Path>src\user\mac\lora_stack.c</Path>
+            <Path>src\user\mac\lora_stack.h</Path>
           </Category>
           <Category Name="protocol">
             <Path>src\user\protocol\emic_lora_crc16_modbus.c</Path>
@@ -2913,7 +2913,7 @@
           <Option>-I "${ProjDirPath}\src\user\services"</Option>
           <Option>-I "${ProjDirPath}\src\user\radio"</Option>
           <Option>-I "${ProjDirPath}\src\user\utils"</Option>
-          <Option>-I "${ProjDirPath}\src\user\link"</Option>
+          <Option>-I "${ProjDirPath}\src\user\mac"</Option>
           <Option>-I "${ProjDirPath}\src\user\app"</Option>
           <Option>-I "${ProjDirPath}\src\user\drv\buzzer"</Option>
           <Option>-I "${ProjDirPath}\src\user\drv\led"</Option>
@@ -3079,7 +3079,7 @@
           <Path>HardwareDebug\hal_systick.obj</Path>
           <Path>HardwareDebug\hal_timer.obj</Path>
           <Path>HardwareDebug\hal_uart.obj</Path>
-          <Path>HardwareDebug\lora_link.obj</Path>
+          <Path>HardwareDebug\lora_mac.obj</Path>
           <Path>HardwareDebug\lora_stack.obj</Path>
           <Path>HardwareDebug\emic_lora_crc16_modbus.obj</Path>
           <Path>HardwareDebug\emic_lora_crypto.obj</Path>
@@ -3682,7 +3682,7 @@
           <IncludePathForC>"${ProjDirPath}\src\user\services"</IncludePathForC>
           <IncludePathForC>"${ProjDirPath}\src\user\radio"</IncludePathForC>
           <IncludePathForC>"${ProjDirPath}\src\user\utils"</IncludePathForC>
-          <IncludePathForC>"${ProjDirPath}\src\user\link"</IncludePathForC>
+          <IncludePathForC>"${ProjDirPath}\src\user\mac"</IncludePathForC>
           <IncludePathForC>"${ProjDirPath}\src\user\app"</IncludePathForC>
           <IncludePathForC>"${ProjDirPath}\src\user\drv\buzzer"</IncludePathForC>
           <IncludePathForC>"${ProjDirPath}\src\user\drv\led"</IncludePathForC>
