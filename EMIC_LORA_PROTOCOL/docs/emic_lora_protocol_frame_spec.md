@@ -1,331 +1,615 @@
-# Gateway ↔ Node Protocol — Frame & Message Spec (Official)
+# Đặc tả Giao thức EMIC LoRa (V2)
 
-Tài liệu này được **chuyển trực tiếp từ bảng đặc tả (ảnh)** do team cung cấp và được dùng làm **tài liệu giao thức chính thức** cho dự án.
+## 1. Tổng quát
 
-Thuật ngữ:
-- **GW**: Gateway
-- **ED**: End Device (Node)
+**Tài liệu này định nghĩa Giao thức EMIC (V2) cho các thiết bị LoRa tiêu thụ ít năng lượng (Thiết bị đầu cuối/ED) giao tiếp với cổng kết nối (GW) theo mô hình sao (star topology). Giao thức được tối ưu hóa cho:**
+
+* **Các nút chạy bằng pin**
+* **Mạng nhỏ (< 256 thiết bị, địa chỉ 16-bit)**
+* **Độ tin cậy cao cho các thông báo quan trọng (cảnh báo, nhịp tim)**
+* **Mã hóa xác thực nhẹ (AES-128-CCM)**
+* **Hành vi xác định (tiêu đề nhỏ, kích thước frame cố định)**
+
+**Giao thức dùng AES-128-CCM để mã hóa xác thực và msg_id (bộ đếm 24-bit) để bảo vệ chống lặp lại tuyệt đối (cửa sổ = 1).**
 
 ---
 
-## 1) Frame format (tổng quát)
+## 2. Nguyên tắc thiết kế
 
-Một frame có dạng:
+* **Kích thước frame tối thiểu**: Tiêu đề 10 byte + Payload 0..50 byte + MIC 4 byte (tổng ≤ 64 byte LoRa)
+* **Tách biệt rõ ràng các lớp**: Lớp giao thức định nghĩa chính sách (cần ACK không? Bộ mật mã nào?), lớp MAC thực hiện chiến thuật (cửa sổ/thử lại)
+* **Broadcast không ACK**: BCAST=1 ⟹ ACK_REQ=0 (bắt buộc)
+* **Unicast với ACK tuỳ chọn**: Cờ giao thức điều khiển xem có yêu cầu ACK hay không
+* **Toàn vẹn + bí mật**: MIC bảo vệ tiêu đề + payload; tiêu đề không được mã hóa (AAD trong CCM)
+* **Chống lặp lại không dung thứ**: Chỉ chấp nhận msg_id > last_msg_id (không cửa sổ)
+* **Crypto xác định**: Nonce dẫn xuất từ ngữ cảnh (net_id hoặc seri_ed) + src + msg_id + dir + key_id
 
-| Field | Size | Ghi chú |
-|---|---:|---|
-| Header | 1 byte | Chứa `CMD` và `FCtr` |
-| Payload | N bytes | **Encrypt** (được mã hoá) |
-| Extend | M bytes | Trường mở rộng (một số lệnh có), **không mã hoá** |
-| CRC16 | 2 bytes | CRC16 của frame |
+**Hồ sơ Sản xuất tối thiểu (khuyến nghị)**
 
-> Ghi chú từ đặc tả: `time_rtc(second)` thuộc phần **Extend** và **không mã hoá**.
+Đối với mạng báo cháy sao sản xuất, tập hợp tính năng/thông báo tối thiểu nên bao gồm:
 
-### 1.1) CRC16 parameters (confirmed)
+* Tham gia + cấp phát (JOIN_REQ/JOIN_ACCEPT)
+* Sự kiện quan trọng + xoá (ALARM/ALARM_CLEAR)
+* Báo cáo lỗi + khôi phục (FAULT_REPORT/FAULT_CLEAR)
+* Giám sát sức khỏe định kỳ (HEARTBEAT)
+* Điều khiển xuống dòng (SIREN_SILENCE, GROUP_SET, TIME_SYNC)
+* Cấu hình từ xa (CFG_SET/CFG_RSP)
 
-CRC16 của frame sử dụng CRC-16/MODBUS (polynomial đảo của 0x8005):
+---
 
-- Polynomial: `0xA001`
-- Initial value: `0xFFFF`
-- Final XOR: `0x0000` (không XOR cuối)
-- Reflect input: Yes
-- Reflect output: Yes
+## 3. Vị trí ngăn xếp giao thức
 
-Phạm vi tính CRC16: **toàn bộ frame trừ 2 byte CRC16 ở cuối** (Header + Payload + Extend).
-
-Thứ tự append CRC16: **MSB-first (big-endian)**.
-
-### 1.2) Payload encryption (confirmed)
-
-Payload sử dụng AES theo chế độ ECB:
-
-- Algorithm: **AES-128-ECB**
-- Key size: 128 bits (16 bytes)
-- IV/Nonce: không có (ECB không dùng IV)
-- Counter: không có
-- Block size: 16 bytes
-- Encrypted data: bắt đầu từ **byte thứ 2 của frame** (bỏ qua byte Frame Control/Header).
-
-#### 1.2.1) Key derivation (confirmed)
-
-Khoá AES 16 byte được tạo như sau:
-
-- Bytes `[0..5]`: copy từ **PanID** (tức `NetID`, 6 bytes)
-- Bytes `[6..13]`: giữ nguyên **default values** (8 bytes)
-- Bytes `[14..15]`: CRC16 của 14 bytes đầu (bytes `[0..13]`)
-
-Default template key (được dùng làm “mẫu”, sau đó override `[0..5]` và `[14..15]` theo quy tắc trên):
-
-```c
-uint8_t au8KeyAES[16] = {
-  0x2b, 0x7e, 0x15, 0x16, 0x28, 0xae, 0xd2, 0xa6,
-  0xab, 0xf7, 0x15, 0x88, 0x09, 0xcf, 0x4f, 0x3c
-};
+```
+Lớp ứng dụng (Application Layer)
+      ↑
+Lớp giao thức (Protocol Layer) ← Định dạng frame, loại thông báo, chính sách bảo mật
+      ↑
+Lớp MAC (MAC Layer) ← Lập lịch, timeout ACK/thử lại, quản lý cửa sổ RX
+      ↑
+Lớp PHY (SX1262 LoRa) ← Điều chế, truy cập kênh, tiêu đề/CRC LoRa PHY
 ```
 
-Suy ra 8 byte **default values** `[6..13]` là:
-
-`d2 a6 ab f7 15 88 09 cf`
-
-#### 1.2.2) Padding / data length
-
-ECB yêu cầu dữ liệu mã hoá có độ dài bội số 16. Nếu payload thực tế không bội số 16, cần chốt quy ước padding (zero-pad / PKCS#7 / fixed-length theo CMD...).
+Tài liệu này chỉ định nghĩa **Lớp giao thức**. Tiêu đề PHY và CRC được quản lý bởi SX1262 (xem datasheet SX1262).
 
 ---
 
-## 2) Header (1 byte)
+## 4. Tổng quan frame
 
-Header 1 byte được chia như sau:
+**Định dạng trên dây (wire format):**
 
-- `CMD`: bits `[7:4]`
-- `FCtr`: bits `[3:0]`
-
-Biểu diễn bit:
-
-```text
-b7  b6  b5  b4   b3  b2  b1  b0
-+--- CMD[7:4] ---+--- FCtr[3:0] --+
+```
+| Tiêu đề (10B) | Payload (0..50B) | MIC (4B) |
 ```
 
-### 2.1) FCtr sub-fields
+**Chi tiết từng phần:**
 
-`FCtr[3:0]` tiếp tục được chia:
+| Trường          | Kích thước (byte) | Mô tả                                                                  |
+| ----------------- | -------------------: | ------------------------------------------------------------------------ |
+| `ver_type`      |                    1 | Phiên bản giao thức (2-bit) + loại thông báo (6-bit)               |
+| `flags`         |                    1 | Các cờ ACK_REQ, ACK, ENC, BCAST, KEY, dự trữ                         |
+| `msg_id`        |                    3 | Bộ đếm thông báo (24-bit, tăng đơn điệu trên mỗi thiết bị) |
+| `src`           |                    2 | Địa chỉ ngắn nguồn (0xFFFF = ED chưa tham gia)                     |
+| `dst`           |                    2 | Địa chỉ đích (0x0000 = GW, 0xFFFF = broadcast)                      |
+| `len`           |                    1 | Độ dài payload tính bằng byte (0..50)                               |
+| **Payload** |                    N | **Mã hóa** nội dung (N = len)                                   |
+| **MIC**     |                    4 | Thẻ xác thực (AES-CCM, cắt ngắn thành 4 byte)                      |
 
-- `SrcType`: bits `[3:2]`
-- `DstType`: bits `[1:0]`
+**Tổng kích thước frame = 10 + N + 4 byte** (trong đó N ≤ 50)
 
-```text
-FCtr:
-  b3  b2   b1  b0
-  +SrcType+ +DstType+
+---
+
+## 5. Các trường tiêu đề frame
+
+### 5.1 `ver_type` (1 byte)
+
+```
+Bit: 7..6    5..0
+     VER     TYPE (0..63)
 ```
 
-#### SrcType[3:2]
+| Trường |  Bit | Giá trị | Mô tả                        |
+| -------- | ---: | --------: | ------------------------------ |
+| VER      | 7..6 |      0b01 | Phiên bản giao thức 2       |
+| TYPE     | 5..0 |     0..63 | Loại thông báo (xem mục 9) |
 
-| SrcType | Value |
-|---|---:|
-| ED | 0 |
-| GW | 1 |
+### 5.2 `flags` (1 byte)
 
-#### DstType[1:0]
+```
+Bit: 7   6   5   4   3   2   1   0
+     R   R   R  BCAST ACK ACK_REQ ENC KEY
+```
 
-| DstType | Value |
-|---|---:|
-| ED (All) | 0 |
-| GW | 1 |
-| Chuông đèn | 2 |
-| ED (1) | 3 |
+|  Bit | Tên        | Giá trị | Ý nghĩa                                                                                     |
+| ---: | ----------- | --------: | --------------------------------------------------------------------------------------------- |
+|    0 | `KEY`     |       0/1 | Bộ chọn khóa (K0=bootstrap, K1=vận hành)                                                 |
+|    1 | `ENC`     |       0/1 | **1 = Payload được mã hóa + xác thực bởi AES-CCM; 0 = dành riêng, bỏ frame** |
+|    2 | `ACK_REQ` |       0/1 | Yêu cầu ACK từ bên nhận (chỉ unicast)                                                   |
+|    3 | `ACK`     |       0/1 | Frame này là phản hồi ACK                                                                 |
+|    4 | `BCAST`   |       0/1 | Địa chỉ đích là broadcast/nhóm (phải có ACK_REQ=0)                                   |
+| 5..7 | `R`       |         0 | Dành riêng (phải = 0)                                                                      |
 
----
+**Ràng buộc:** Nếu `BCAST=1`, thì `ACK_REQ=0` (bắt buộc)
 
-## 3) CMD list
+### 5.3 `msg_id` (24-bit, big-endian)
 
-| CMD | Value |
-|---|---:|
-| JoinRequest | `0x01` |
-| JoinAccept | `0x02` |
-| Alarm | `0x03` |
-| Alarm Stop | `0x04` |
-| Silence | `0x05` |
-| Enter operation | `0x06` |
-| ACK | `0x08` |
-| Heart beat | `0x09` |
-| EXIT | `0x0B` |
-| EXIT_GW | `0x0C` |
-| Test ED | `0x0D` |
+* Tăng đơn điệu trên mỗi thiết bị
+* Lưu bền vững trong NVM (phía ED) để sống sót sau khi khởi động lại
+* GW theo dõi "msg_id cuối cùng nhìn thấy" trên mỗi `(src, dir, key_id)` để chống lặp lại
+* **Quy tắc chống lặp lại**: Chỉ chấp nhận nếu `new_msg_id > last_msg_id` (cửa sổ = 1, không dung thứ)
 
----
+### 5.4 `src`, `dst` (16-bit, big-endian)
 
-## 4) Field definitions (payload)
+| Địa chỉ     | Ý nghĩa                                                     |
+| -------------- | ------------------------------------------------------------- |
+| 0x0000         | Cổng kết nối (Gateway)                                     |
+| 0x0001..0xFFFD | Địa chỉ ngắn ED (được cấp tại Join)                  |
+| 0xFFFE         | Nhóm/broadcast (định nghĩa hệ thống)                    |
+| 0xFFFF         | Broadcast tất cả ED (hoặc ED chưa tham gia gửi JOIN_REQ) |
 
-### 4.1) `device_type` (1 byte)
+### 5.5 `len` (8-bit)
 
-| device_type | Value |
-|---|---:|
-| Chuông đèn | 0 |
-| Đầu báo nhiệt | 1 |
-| Đầu báo khói | 2 |
-| Nút nhấn | 3 |
+Độ dài payload tính bằng byte: `0..50`
 
-### 4.2) `device_status` (1 byte)
-
-| Tên | Bit | Value |
-|---|---:|---|
-| Lỗi cảm biến | 0 | `0`: no, `1`: err |
-| Trạng thái reset | 1 | `0`: no, `1`: yes |
-| Dự phòng | 2..7 | reserved |
-
-### 4.3) `batt_vol` (2 bytes)
-
-Theo ví dụ trong đặc tả:
-
-| batt_vol | Ví dụ |
-|---:|---|
-| 2.75 | 275 |
-
-=> Hàm ý giá trị truyền có thể là **điện áp × 100** (đơn vị 0.01V). Nếu có quy ước khác (mV, 0.1V…), hãy cập nhật phần này.
-
-### 4.4) `firm_id` (3 bytes)
-
-Ví dụ trong đặc tả: phiên bản `1.1.2` được encode thành 3 byte:
-
-- `[1][1][2]`
+**Xác thực:** Bên nhận phải kiểm tra `0 <= len <= 50`, bỏ nếu không hợp lệ.
 
 ---
 
-## 5) Message formats (theo từng loại bản tin)
+## 6. Cấu trúc Payload
 
-Quy ước trong bảng dưới:
-- Tất cả các trường liệt kê trong **Payload** là **Encrypt**.
-- Trường trong **Extend** là **không mã hoá**.
+**Payload được mã hóa (N byte, N = len):**
 
-### 5.1) ED → GW: JoinRequest (`CMD=0x01`)
+Toàn bộ payload được mã hóa bằng AES-CCM. Cấu trúc phụ thuộc vào loại thông báo TYPE (xem mục 9).
 
-| Field | Size |
-|---|---:|
-| Seri ED | 6 bytes |
-
-**Implementation note (Join Mode / user-initiated connect setup):**
-
-- JoinRequest là uplink **không yêu cầu ACK**.
-- Khi người dùng vào **Join Mode**, node sẽ:
-  - Gửi JoinRequest lặp lại mỗi **1s** cho đến khi nhận JoinAccept.
-  - Sau mỗi TX JoinRequest, node mở một RX window dài hơn (ví dụ `APP_RX_AFTER_JOIN_TX_MS`) để chờ JoinAccept.
-  - Trong thời gian Join Mode, luồng **CAD paging định kỳ tạm dừng** để tránh tranh lịch radio với nhịp TX/RX của JoinRequest.
-- Khi thoát Join Mode (single click hoặc timeout), JoinRequest dừng và CAD paging hoạt động lại theo lịch bình thường.
-
-### 5.2) GW → ED: JoinAccept (`CMD=0x02`)
-
-Payload (Encrypt):
-
-| Field | Size | Ghi chú |
-|---|---:|---|
-| Seri ED | 6 bytes | |
-| ShortAddr | 2 bytes | **Không sử dụng** (omit trong V1 hiện tại) |
-| NetID | 6 bytes | |
-| channel | 1 byte | |
-
-**Channel meaning (implementation):**
-
-- `channel` là **channel index** (0..8), map sang bảng tần số AS923 920–923 MHz (odd channels, spacing 300 kHz) trong tài liệu node spec.
-- Trong Join Mode, node luôn gửi JoinRequest ở **index 0** (meeting point), sau đó switch sang `channel` được cấp phát khi nhận JoinAccept.
-
-Extend (plaintext):
-
-| Field | Size | Ghi chú |
-|---|---:|---|
-| time_rtc (second) | 4 bytes | **Note: timestamp ko mã hoá** |
-
-### 5.3) GW → ED: Enter operation (`CMD=0x06`)
-
-| Field | Size |
-|---|---:|
-| NetID | 6 bytes |
-
-### 5.4) ED → GW: Alarm (`CMD=0x03`)
-
-| Field | Size |
-|---|---:|
-| Src Seri | 6 bytes |
-| NetID | 6 bytes |
-| Fcnt | 4 bytes |
-
-### 5.5) GW → ED: Alarm (`CMD=0x03`)
-
-| Field | Size |
-|---|---:|
-| Src Seri | 6 bytes |
-| NetID | 6 bytes |
-| Fcnt | 4 bytes |
-
-### 5.6) ED → GW: Alarm Stop (`CMD=0x04`)
-
-| Field | Size |
-|---|---:|
-| Src Seri | 6 bytes |
-| NetID | 6 bytes |
-| Fcnt | 4 bytes |
-
-### 5.7) GW → ED: Alarm Stop (`CMD=0x04`)
-
-| Field | Size |
-|---|---:|
-| Src Seri | 6 bytes |
-| NetID | 6 bytes |
-| Fcnt | 4 bytes |
-
-### 5.8) ED → GW: Silence (`CMD=0x05`)
-
-| Field | Size |
-|---|---:|
-| Src Seri | 6 bytes |
-| NetID | 6 bytes |
-| Fcnt | 4 bytes |
-
-### 5.9) GW → ED: Silence (`CMD=0x05`)
-
-| Field | Size |
-|---|---:|
-| Src Seri | 6 bytes |
-| NetID | 6 bytes |
-| Fcnt | 4 bytes |
-
-### 5.10) GW → ED: ACK (`CMD=0x08`)
-
-Payload (Encrypt):
-
-| Field | Size |
-|---|---:|
-| Src Seri | 6 bytes |
-| NetID | 6 bytes |
-| Fcnt | 4 bytes |
-
-Extend (plaintext):
-
-| Field | Size |
-|---|---:|
-| time_rtc (second) | 4 bytes |
-
-### 5.11) ED → GW: Heart beat (`CMD=0x09`)
-
-| Field | Size |
-|---|---:|
-| Src Seri | 6 bytes |
-| NetID | 6 bytes |
-| Fcnt | 4 bytes |
-| batt_vol | 2 bytes |
-| device_status | 1 byte |
-| firm_id | 3 bytes |
-| device_type | 1 byte |
-
-### 5.12) ED → GW: EXIT (`CMD=0x0B`)
-
-| Field | Size |
-|---|---:|
-| Src Seri | 6 bytes |
-| NetID | 6 bytes |
-| Fcnt | 4 bytes |
-
-### 5.13) GW → ED: Test ED / Test Alarm (`CMD=0x0D`)
-
-Tên trong bảng là **Test ED** (`0x0D`), dòng minh hoạ ghi **Test Alarm**. Nội dung payload theo bảng:
-
-| Field | Size |
-|---|---:|
-| Src Seri | 6 bytes |
-| NetID | 6 bytes |
-| Fcnt | 4 bytes |
+**Không cần đệm:** AES-CCM hoạt động theo chế độ giống như luồng (stream-like); độ dài được xác định bởi trường `len`.
 
 ---
 
-## 6) Các điểm cần chốt thêm (nếu muốn “spec đóng” hoàn toàn)
+## 7. MIC (Mã xác thực thông báo)
 
-Thông tin đã được chốt theo trao đổi:
+**4 byte, big-endian**
 
-- `NetID` chính là **PanID**: 6 bytes, **big-endian**.
-- `Fcnt`: 4 bytes `uint32_t`, **big-endian**, **per-device persistent counter** (không phải per-session).
-- `ShortAddr`: không sử dụng trong V1 hiện tại.
+* Được tính toán bởi AES-CCM trên (tiêu đề + payload)
+* Bảo vệ **tiêu đề** (10 byte dưới dạng AAD) và **payload** (N byte)
+* Mức bảo mật: ~$2^{-32}$ xác suất giả mạo trên mỗi lần thử
+* Không thể bỏ qua hoặc bỏ sót
 
-Open items còn lại để “spec đóng” hoàn toàn:
+---
 
-- Quy ước **padding** cho AES-ECB (nếu payload không bội số 16).
+## 8. Đặc tả bảo mật (AES-128-CCM)
+
+### 8.1 Thuật toán và thông số
+
+| Thông số           | Giá trị                  |
+| -------------------- | -------------------------- |
+| Mật mã (Cipher)    | AES-128                    |
+| Chế độ (Mode)     | CCM (Mã hóa xác thực)  |
+| Độ dài khóa      | 16 byte (128-bit)          |
+| Độ dài Nonce      | 13 byte                    |
+| Độ dài MIC        | 4 byte (cắt ngắn từ 16) |
+| AAD                  | 10-byte tiêu đề         |
+| Plaintext/Ciphertext | N-byte payload             |
+
+### 8.2 Tài liệu khóa
+
+| ID khóa       | Tên             | Sử dụng cho             |
+| -------------- | ---------------- | ------------------------- |
+| K0 (`KEY=0`) | Khóa bootstrap  | JOIN_REQ, JOIN_ACCEPT     |
+| K1 (`KEY=1`) | Khóa vận hành | Tất cả traffic sau Join |
+
+### 8.3 Xây dựng Nonce (13 byte)
+
+```
+| ctx6 (6B) | src (2B) | msg_id (3B) | dir (1B) | key_id (1B) |
+```
+
+| Trường   | Byte | Nguồn                                                                                      | Ghi chú                    |
+| ---------- | ---: | ------------------------------------------------------------------------------------------- | --------------------------- |
+| `ctx6`   |    6 | `net_id` (sau Join) hoặc `seri_ed` (trong Join)                                        | Ngữ cảnh mạng            |
+| `src`    |    2 | Trường `src` từ tiêu đề                                                             | Địa chỉ nguồn           |
+| `msg_id` |    3 | Trường `msg_id` từ tiêu đề                                                          | Bộ đếm thông báo       |
+| `dir`    |    1 | Dẫn xuất từ `src`: nếu src==0x0000 thì 0x01 (GW→ED), nếu không thì 0x00 (ED→GW) | Hướng                     |
+| `key_id` |    1 | `flags.KEY` từ tiêu đề                                                                | Bộ chọn khóa (0 hoặc 1) |
+
+**Yêu cầu tính duy nhất:** Mỗi cặp (khóa, nonce) được sử dụng tối đa một lần.
+
+### 8.4 Dữ liệu xác thực bổ sung (AAD)
+
+Các trường tiêu đề được bảo vệ nhưng KHÔNG được mã hóa:
+
+```
+AAD = ver_type || flags || msg_id || src || dst || len
+    = 10 byte
+```
+
+Bất kỳ lật bit nào trong các trường này đều gây ra không khớp MIC → frame bị bỏ.
+
+### 8.5 Quá trình mã hóa (TX)
+
+1. Xây dựng plaintext payload (theo loại thông báo TYPE)
+2. Xây dựng nonce (mục 8.3)
+3. Xây dựng AAD = 10-byte tiêu đề
+4. Chạy AES-CCM:
+   - Đầu vào: khóa, nonce, AAD, plaintext
+   - Đầu ra: ciphertext (N byte) + thẻ (4 byte)
+5. Thêm MIC (4 byte) vào frame
+6. **Tổng cộng**: tiêu đề (10) + ciphertext (N) + MIC (4)
+
+### 8.6 Quá trình giải mã (RX)
+
+1. Phân tích tiêu đề (10 byte)
+2. Xác thực cờ `ENC`:
+   * Nếu `ENC != 1` → **bỏ frame** (giá trị dành riêng)
+3. Xác thực `0 <= len <= 50`, bỏ nếu không hợp lệ
+4. Xây dựng nonce (mục 8.3)
+5. Xây dựng AAD (10-byte tiêu đề)
+6. Chạy xác minh AES-CCM:
+   - Đầu vào: khóa, nonce, AAD, ciphertext (N byte), thẻ (MIC)
+   - Nếu xác minh thất bại → **bỏ frame im lặng** (không ACK, không sự kiện)
+7. Nếu xác minh thành công:
+   - Giải mã payload
+   - Kiểm tra chống lặp lại (mục 8.7)
+   - Gửi theo TYPE
+
+### 8.7 Xác thực chống lặp lại
+
+Duy trì **last_msg_id trên mỗi `(src, dir, key_id)`**.
+
+```
+nếu (new_msg_id > last_msg_id):
+    chấp nhận frame, cập nhật last_msg_id = new_msg_id
+nếu không:
+    bỏ frame (phát hiện lặp lại)
+```
+
+**Kích thước cửa sổ = 1 (không dung thứ):**
+
+* Chỉ chấp nhận msg_id tăng nghiêm ngặt
+* Không dung thứ với thứ tự lại (nếu ED thử lại, thử lại bị bỏ)
+* Sức mạnh chống lặp lại tối đa
+
+**Trade-off:**
+
+* ✅ Bảo vệ mạnh mẽ chống tấn công lặp lại
+* ⚠️ Thứ tự lại LoRa hoặc thử lại ED sẽ bị bỏ
+* → Lớp MAC phải xử lý thử lại mà không dựa vào cửa sổ msg_id
+
+---
+
+## 9. Loại thông báo
+
+### 9.0 Quy ước đặt tên
+
+Tên loại thông báo sử dụng **UPPER_SNAKE_CASE** và nên:
+
+* Động từ đầu tiên nếu áp dụng (ví dụ: `CFG_SET`, `TIME_SYNC`)
+* Cụ thể cho lĩnh vực (ví dụ: `SIREN_SILENCE` thay vì `SILENCE` chung chung)
+* Ổn định theo thời gian (không đổi tên sau khi triển khai trên không khí)
+
+### 9.1 Danh sách loại
+
+| Loại | Tên            | Hướng  | ACK_REQ | Ghi chú                                                 |
+| ----: | --------------- | -------- | ------- | -------------------------------------------------------- |
+|     1 | JOIN_REQ        | ED → GW | 0       | ED yêu cầu tham gia                                    |
+|     2 | JOIN_ACCEPT     | GW → ED | 0       | GW cấp short_addr                                       |
+|     3 | ALARM           | ED → GW | 1       | Cảnh báo từ ED                                        |
+|     4 | ALARM_CLEAR     | ED → GW | 1       | Cảnh báo hết/dừng                                    |
+|     5 | SIREN_SILENCE   | GW → ED | 0       | Tắt còi/loa (broadcast)                                |
+|     6 | SET_OPERATIONAL | GW → ED | 0       | ED vào chế độ vận hành                             |
+|     8 | ACK             | GW ↔ ED | 0       | Phản hồi ACK (lưỡng chiều)                          |
+|     9 | HEARTBEAT       | ED → GW | 1*      | Kiểm tra sức khỏe                                     |
+|    11 | LEAVE_NETWORK   | ED → GW | 1       | ED rời khỏi mạng                                      |
+|    12 | GW_SHUTDOWN     | GW → ED | 0       | Thông báo tắt GW (broadcast)                          |
+|    13 | PING            | GW → ED | 0       | Kiểm tra kết nối (unicast hoặc broadcast)            |
+|    14 | FAULT_REPORT    | ED → GW | 1       | Báo cáo lỗi/xâm nhập/pin yếu                       |
+|    15 | FAULT_CLEAR     | ED → GW | 1       | Lỗi được khôi phục/xoá                            |
+|    16 | CFG_SET         | GW → ED | 1       | Đặt các tham số cấu hình                           |
+|    17 | CFG_RSP         | ED → GW | 1       | Phản hồi cấu hình (kết quả + giá trị tuỳ chọn) |
+|    18 | TIME_SYNC       | GW → ED | 0       | Đồng bộ hóa thời gian (broadcast khuyến nghị)     |
+|    19 | GROUP_SET       | GW → ED | 1       | Gán/sửa đổi thành viên nhóm                       |
+
+---
+
+## 10. Cơ chế ACK (Lưỡng chiều)
+
+### 10.1 ACK Unicast từ GW
+
+* **Người gửi đặt:** `ACK_REQ = 1`, `dst = <địa chỉ unicast>`
+* **Bên nhận (ED) phản hồi** bằng frame TYPE=8 (ACK) có `flags.ACK=1`
+* **Người gửi chờ** với timeout/thử lại (trách nhiệm lớp MAC)
+* **Frame ACK không được ACK** (để tránh vòng lặp vô tận)
+
+### 10.2 ACK Unicast từ ED
+
+* **Người gửi (GW) đặt:** `ACK_REQ = 1`, `dst = <địa chỉ ED>`
+* **Bên nhận (ED) phản hồi** bằng frame TYPE=8 (ACK) có `flags.ACK=1`, `src = <ED_short_addr>`, `dst = 0x0000`
+* **GW chờ** với timeout/thử lại (trách nhiệm lớp MAC)
+* **Frame ACK không được yêu cầu ACK** (`ACK_REQ=0`)
+
+### 10.3 Broadcast không ACK
+
+* **Người gửi phải đặt:** `BCAST = 1`, `ACK_REQ = 0`
+* **Bên nhận không bao giờ gửi ACK** (ngay cả khi nhận được packet)
+* Broadcast không đáng tin cậy (không phản hồi)
+
+---
+
+## 11. Quy tắc xác thực
+
+| Điều kiện              | Hành động                |
+| ------------------------- | --------------------------- |
+| `ENC != 1`              | Bỏ frame                   |
+| `len > 50`              | Bỏ frame                   |
+| MIC không khớp          | Bỏ frame im lặng          |
+| `msg_id <= last_msg_id` | Bỏ frame (lặp lại)       |
+| `BCAST=1 && ACK_REQ=1`  | Bỏ frame (không hợp lệ) |
+
+---
+
+## 12. Ràng buộc kích thước Frame
+
+* Giới hạn LoRa payload: 64 byte
+* Tiêu đề: 10 byte
+* MIC: 4 byte
+* **Max payload:** 64 - 10 - 4 = **50 byte**
+
+---
+
+## 13. Xử lý lỗi
+
+| Lỗi                                | Hành động bên nhận           | Hành động người gửi               |
+| ----------------------------------- | --------------------------------- | --------------------------------------- |
+| Frame bị bỏ (lỗi MIC, lặp lại) | Bỏ im lặng, không ACK          | Timeout → thử lại (chính sách MAC) |
+| ACK không nhận được            | Timeout                           | Thử lại hoặc từ bỏ                 |
+| Loại TYPE chưa biết              | Bỏ qua, xử lý frame tiếp theo | N/A                                     |
+
+---
+
+## 14. Khả năng mở rộng
+
+* Trường TYPE là 6-bit (0..63) → chỗ cho 60+ loại thông báo
+* Các bit `flags` dành riêng cho phép các tính năng trong tương lai (multicast, khóa phiên)
+* Cấu trúc nonce cho phép cách ly trên mỗi thiết bị
+
+---
+
+## 15. Danh sách kiểm tra triển khai
+
+- [ ] Xây dựng frame: tuần tự hóa tiêu đề + mã hóa payload + tính toán MIC
+- [ ] Phân tích frame: xác thực tiêu đề + xác minh MIC + giải mã payload
+- [ ] Xây dựng nonce: xây dựng từ `ctx6` + `src` + `msg_id` + `dir` + `key_id`
+- [ ] Chống lặp lại: duy trì last_msg_id trên mỗi `(src, dir, key_id)`
+- [ ] Logic ACK: nếu `ACK_REQ=1` mở cửa sổ RX, nếu không bỏ qua
+- [ ] Trình xử lý loại thông báo: phân tích per-TYPE payload
+- [ ] Lựa chọn khóa: K0 cho Join, K1 cho traffic
+- [ ] Quy tắc broadcast: từ chối `BCAST=1 && ACK_REQ=1`
+
+---
+
+## 16. Ví dụ Frame
+
+**ED gửi HEARTBEAT đến GW:**
+
+```
+Tiêu đề (hex):
+  00: VER_TYPE = 0x49  (VER=01b, TYPE=9)
+  01: FLAGS = 0x06     (KEY=0, ENC=1, ACK_REQ=1, ACK=0, BCAST=0, R=0)
+  02-04: MSG_ID = 000042
+  05-06: SRC = 1234
+  07-08: DST = 0000 (GW)
+  09: LEN = 06
+
+Payload (6 byte, được mã hóa):
+  <Ciphertext AES-CCM của device_status + batt_v + firm_id>
+
+MIC (4 byte):
+  <Thẻ AES-CCM>
+
+Tổng cộng: 10 + 6 + 4 = 20 byte
+```
+
+---
+
+## 17. Ghi chú & Tham khảo
+
+* **AES-CCM:** Được chọn vì sự cân bằng giữa bảo mật và chi phí thấp
+* **MIC 4 byte:** Có thể tăng lên 8 byte nếu thời gian trên không khí cho phép ($2^{-32}$ → $2^{-64}$)
+* **Kích thước cửa sổ = 1:** Không dung thứ với lặp lại; đơn giản hóa triển khai
+* **LoRa PHY:** Tiêu đề/CRC được quản lý bởi SX1262 (xem datasheet SX1262)
+* **Đồng bộ hóa đồng hồ:** Không bắt buộc; RTC trong JOIN_ACCEPT là tuỳ chọn (cho dấu thời gian log)
+
+---
+
+## Chi tiết từng loại thông báo (Phụ lục)
+
+### JOIN_REQ (ED → GW, TYPE=1)
+
+**Tiêu đề:**
+
+- `src = 0xFFFF` (ED chưa có short_addr)
+- `dst = 0x0000` (tới GW)
+- `BCAST = 0`, `ACK_REQ = 0`, `ENC = 1`, `KEY = 0`
+
+**Payload (10 byte):**
+
+| Trường        | Kích thước | Mô tả              |
+| --------------- | ------------: | -------------------- |
+| `seri_ed`     |             6 | Số seri thiết bị  |
+| `firm_id`     |             3 | Phiên bản firmware |
+| `device_type` |             1 | Loại thiết bị     |
+
+---
+
+### JOIN_ACCEPT (GW → ED, TYPE=2)
+
+**Tiêu đề:**
+
+- `src = 0x0000` (từ GW)
+- `dst = <short_addr>` (unicast, địa chỉ mới được cấp)
+- `BCAST = 0`, `ACK_REQ = 0`, `ENC = 1`, `KEY = 0`
+
+**Payload (Thành công, 20 byte):**
+
+| Trường        | Kích thước | Mô tả                              |
+| --------------- | ------------: | ------------------------------------ |
+| `seri_ed`     |             6 | Lặp lại số seri ED (ED xác minh) |
+| `short_addr`  |             2 | Địa chỉ ngắn được cấp        |
+| `net_id`      |             6 | ID mạng (dùng làm ctx6 sau Join)  |
+| `channel_idx` |             1 | Kênh ưu tiên                      |
+| `time_rtc_s`  |             4 | Dấu thời gian RTC                  |
+
+**Payload (NACK, 1 byte):**
+
+| Trường        | Kích thước | Mô tả          |
+| --------------- | ------------: | ---------------- |
+| `reject_code` |             1 | Lý do từ chối |
+
+**Xây dựng nonce (Giai đoạn Join):** GW: nonce với `ctx6 = seri_ed` (từ JOIN_REQ), ED: nonce với `ctx6 = seri_ed` (chính mình) để giải mã → lấy `net_id`.
+
+---
+
+### ALARM / ALARM_CLEAR (ED → GW, TYPE=3/4)
+
+**Tiêu đề:**
+
+- `dst = 0x0000`, `ACK_REQ = 1`, `ENC = 1`, `KEY = 1`
+
+**Payload (6 byte):**
+
+| Trường          | Kích thước | Mô tả                                     |
+| ----------------- | ------------: | ------------------------------------------- |
+| `alarm_id`      |             2 | ID loại cảnh báo                         |
+| `device_status` |             1 | Các cờ trạng thái                       |
+| `batt_v_x100`   |             2 | Điện áp pin × 100 (ví dụ: 300 = 3.0V) |
+
+---
+
+### SIREN_SILENCE (GW → ED, TYPE=5)
+
+**Tiêu đề:**
+
+- `dst = 0xFFFF`, `BCAST = 1`, `ACK_REQ = 0` (bắt buộc), `ENC = 1`, `KEY = 1`
+
+**Payload (0..2 byte):**
+
+| Trường     | Kích thước | Mô tả                                                |
+| ------------ | ------------: | ------------------------------------------------------ |
+| `alarm_id` |             2 | Cảnh báo để tắt tiếng (0 = tắt tiếng tất cả) |
+
+---
+
+### HEARTBEAT (ED → GW, TYPE=9)
+
+**Tiêu đề:**
+
+- `dst = 0x0000`, `ACK_REQ = 1` (khuyến nghị) hoặc 0, `ENC = 1`, `KEY = 1`
+
+**Payload (6 byte):**
+
+| Trường          | Kích thước | Mô tả               |
+| ----------------- | ------------: | --------------------- |
+| `device_status` |             1 | Các cờ trạng thái |
+| `batt_v_x100`   |             2 | Điện áp pin × 100 |
+| `firm_id`       |             3 | Phiên bản firmware  |
+
+---
+
+### FAULT_REPORT (ED → GW, TYPE=14)
+
+Dùng để báo cáo ngay các lỗi thiết bị (xâm nhập, lỗi cảm biến, pin yếu, v.v.).
+
+**Tiêu đề:**
+
+- `dst = 0x0000`, `ACK_REQ = 1`, `ENC = 1`, `KEY = 1`
+
+**Payload (gợi ý, tối thiểu 4 byte):**
+
+| Trường          | Kích thước | Mô tả                                           |
+| ----------------- | ------------: | ------------------------------------------------- |
+| `fault_code`    |             1 | Định danh lỗi (do hệ thống định nghĩa)    |
+| `fault_flags`   |             1 | Bitmask (xâm nhập/pin yếu/lỗi cảm biến/...) |
+| `device_status` |             1 | Snapshot trạng thái tuỳ chọn                  |
+| `batt_v_x100`   |             2 | Tuỳ chọn (nếu chỗ cho phép)                  |
+
+---
+
+### CFG_SET (GW → ED, TYPE=16)
+
+Đặt một tham số cấu hình (hoặc một nhóm nhỏ). Dùng unicast.
+
+**Tiêu đề:**
+
+- `dst = <ED_short_addr>` (unicast)
+- `ACK_REQ = 1` (khuyến nghị)
+- `ENC = 1`, `KEY = 1`
+
+**Payload (mục đơn lẻ, tối thiểu):**
+
+| Trường      | Kích thước | Mô tả                                                       |
+| ------------- | ------------: | ------------------------------------------------------------- |
+| `param_id`  |             1 | Định danh tham số                                          |
+| `op`        |             1 | 0=set, 1=get (tuỳ chọn; hoặc định nghĩa riêng CFG_GET) |
+| `value_len` |             1 | Độ dài `value`                                           |
+| `value`     |             N | Các byte giá trị tham số                                  |
+
+---
+
+### CFG_RSP (ED → GW, TYPE=17)
+
+Phản hồi CFG_SET/CFG_GET.
+
+**Tiêu đề:**
+
+- `dst = 0x0000`, `ACK_REQ = 1` (khuyến nghị), `ENC = 1`, `KEY = 1`
+
+**Payload:**
+
+| Trường      | Kích thước | Mô tả                        |
+| ------------- | ------------: | ------------------------------ |
+| `param_id`  |             1 | Định danh tham số           |
+| `result`    |             1 | 0=OK, khác 0=mã lỗi         |
+| `value_len` |             1 | Độ dài giá trị trả về   |
+| `value`     |             N | Các byte giá trị tuỳ chọn |
+
+---
+
+### TIME_SYNC (GW → ED, TYPE=18)
+
+Thông báo đồng bộ hóa thời gian. Broadcast khuyến nghị.
+
+**Tiêu đề (broadcast khuyến nghị):**
+
+- `dst = 0xFFFF`, `BCAST = 1`, `ACK_REQ = 0`, `ENC = 1`, `KEY = 1`
+
+**Payload (4 byte):**
+
+| Trường       | Kích thước | Mô tả                                                             |
+| -------------- | ------------: | ------------------------------------------------------------------- |
+| `time_rtc_s` |             4 | Bộ đếm giây kiểu Unix (epoch được định nghĩa hệ thống) |
+
+---
+
+### GROUP_SET (GW → ED, TYPE=19)
+
+Gán/sửa đổi thành viên nhóm (để phân vùng còi/đèn).
+
+**Tiêu đề:**
+
+- `dst = <ED_short_addr>` (unicast)
+- `ACK_REQ = 1` (khuyến nghị)
+- `ENC = 1`, `KEY = 1`
+
+**Payload (tối thiểu):**
+
+| Trường     | Kích thước | Mô tả                                     |
+| ------------ | ------------: | ------------------------------------------- |
+| `group_id` |             2 | Định danh nhóm (ví dụ: 0x0001..0xFFFE) |
+| `action`   |             1 | 0=xoá, 1=thêm, 2=thay thế                |
+
+---
+
+### ACK (GW ↔ ED, TYPE=8)
+
+**Tiêu đề (từ GW tới ED):**
+
+- `src = 0x0000`, `dst = <ED_short_addr>`, `flags.ACK = 1`, `ACK_REQ = 0`, `ENC = 1`, `KEY = 1`
+
+**Tiêu đề (từ ED tới GW):**
+
+- `src = <ED_short_addr>`, `dst = 0x0000`, `flags.ACK = 1`, `ACK_REQ = 0`, `ENC = 1`, `KEY = 1`
+
+**Payload (kích thước biến thiên):**
+
+| Trường         | Kích thước | Mô tả                                   |
+| ---------------- | ------------: | ----------------------------------------- |
+| `acked_msg_id` |             3 | msg_id được xác nhận                 |
+| `status`       |             1 | 0 = OK, khác 0 = lý do NACK             |
+| `time_rtc_s`   |             4 | **Tuỳ chọn**: Dấu thời gian RTC |
+
+**Xử lý trường tuỳ chọn:**
+
+- Nếu `len = 4` → chỉ `acked_msg_id` + `status`
+- Nếu `len = 8` → bao gồm `time_rtc_s`
+
+---
+
+**Tài liệu này hoàn chỉnh và sẵn sàng cho triển khai V2.**

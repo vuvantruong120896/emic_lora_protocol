@@ -19,63 +19,80 @@
 #include "emic_lora_crypto.h"
 
 /**
- * @brief Retrieve standard payload and extend field lengths for a command.
+ * @brief Retrieve standard extend field length for a command.
  *
  * @param cmd Command type
- * @param payload_plain_len[out] Plaintext payload length (before padding)
  * @param extend_len[out] Extend field length (plaintext)
  *
  * @return 1 if cmd is recognized, 0 otherwise
  *
- * @note Lengths are fixed per command per the official EMIC protocol spec;
- *       no length field exists in the frame itself.
+ * @note V1.1 carries payload_plain_len in-frame; extend_len is still fixed per cmd.
  */
-static uint8_t get_cmd_lengths(uint8_t cmd, uint8_t *payload_plain_len, uint8_t *extend_len)
+static uint8_t get_cmd_extend_len(uint8_t cmd, uint8_t *extend_len)
 {
-    /* Payload plaintext lengths (before padding). Extend is plaintext.
-     * NOTE: these lengths are from the official message table; no length field exists in-frame.
-     */
     switch (cmd)
     {
         case EMIC_LORA_CMD_JOIN_REQUEST:
-            *payload_plain_len = 6U;
             *extend_len = 0U;
             return 1U;
 
         case EMIC_LORA_CMD_JOIN_ACCEPT:
-            *payload_plain_len = 13U;
             *extend_len = 4U; /* time_rtc(second) */
             return 1U;
 
         case EMIC_LORA_CMD_ENTER_OPERATION:
-            *payload_plain_len = 6U;
             *extend_len = 0U;
             return 1U;
 
         case EMIC_LORA_CMD_ACK:
-            *payload_plain_len = 16U;
             *extend_len = 4U;
             return 1U;
 
         case EMIC_LORA_CMD_HEARTBEAT:
-            *payload_plain_len = 23U;
             *extend_len = 0U;
             return 1U;
 
-        /* Group: payload=16, extend=0 */
+        /* Group: extend=0 */
         case EMIC_LORA_CMD_ALARM:
         case EMIC_LORA_CMD_ALARM_STOP:
         case EMIC_LORA_CMD_SILENCE:
         case EMIC_LORA_CMD_EXIT:
         case EMIC_LORA_CMD_EXIT_GW:
         case EMIC_LORA_CMD_TEST_ED:
-            *payload_plain_len = 16U;
             *extend_len = 0U;
             return 1U;
 
         default:
             return 0U;
     }
+}
+
+static uint8_t protocol_should_ack_req(uint8_t cmd, uint8_t src_type, uint8_t dst_type)
+{
+    /* Broadcast/group must never require ACK. */
+    if (dst_type == (uint8_t)EMIC_LORA_DST_ED_ALL)
+    {
+        return 0U;
+    }
+
+    /* Short-term policy: only ED->GW uplinks request ACK for critical messages. */
+    if ((src_type == (uint8_t)EMIC_LORA_SRC_ED) && (dst_type == (uint8_t)EMIC_LORA_DST_GW))
+    {
+        switch (cmd)
+        {
+            case EMIC_LORA_CMD_HEARTBEAT:
+            case EMIC_LORA_CMD_ALARM:
+            case EMIC_LORA_CMD_ALARM_STOP:
+            case EMIC_LORA_CMD_EXIT:
+                return 1U;
+
+            case EMIC_LORA_CMD_JOIN_REQUEST:
+            default:
+                return 0U;
+        }
+    }
+
+    return 0U;
 }
 
 uint8_t emic_lora_build_frame(const uint8_t pan_id[6],
@@ -94,35 +111,48 @@ uint8_t emic_lora_build_frame(const uint8_t pan_id[6],
     uint16_t crc;
     uint8_t total;
     uint8_t header;
+    uint8_t flags;
 
     if (pan_id == NULL || out == NULL)
     {
         return 0U;
     }
 
+    if (payload_plain_len > 48U)
+    {
+        return 0U;
+    }
+
     header = (uint8_t)(((cmd & 0x0FU) << 4) | (((src_type & 0x03U) << 2) | (dst_type & 0x03U)));
+    flags = 0U;
+    if (protocol_should_ack_req(cmd, src_type, dst_type))
+    {
+        flags |= EMIC_LORA_FLAG_ACK_REQ;
+    }
 
     enc_len = emic_lora_round_up_16(payload_plain_len);
 
-    total = (uint8_t)(1U + enc_len + extend_len + 2U);
+    total = (uint8_t)(3U + enc_len + extend_len + 2U);
     if (total > out_max)
     {
         return 0U;
     }
 
     out[0] = header;
+    out[1] = flags;
+    out[2] = payload_plain_len;
 
-    /* Copy + zero-pad payload into encryption region (byte 1..). */
+    /* Copy + zero-pad payload into encryption region (byte 3..). */
     if (enc_len != 0U)
     {
-        memset(&out[1], 0, enc_len);
+        memset(&out[3], 0, enc_len);
         if (payload_plain != NULL && payload_plain_len != 0U)
         {
-            memcpy(&out[1], payload_plain, payload_plain_len);
+            memcpy(&out[3], payload_plain, payload_plain_len);
         }
 
         emic_lora_derive_aes_key_from_pan_id(pan_id, key);
-        emic_lora_aes_ecb_encrypt_inplace(key, &out[1], enc_len);
+        emic_lora_aes_ecb_encrypt_inplace(key, &out[3], enc_len);
     }
 
     /* Extend is plaintext after encrypted payload. */
@@ -132,15 +162,15 @@ uint8_t emic_lora_build_frame(const uint8_t pan_id[6],
         {
             return 0U;
         }
-        memcpy(&out[1U + enc_len], extend, extend_len);
+        memcpy(&out[3U + enc_len], extend, extend_len);
     }
 
-    /* CRC16 over header + encrypted payload + extend (exclude CRC bytes). */
-    crc = emic_lora_crc16_modbus(out, (uint16_t)(1U + enc_len + extend_len));
+    /* CRC16 over Header0+Flags+PayloadLen + encrypted payload + extend (exclude CRC bytes). */
+    crc = emic_lora_crc16_modbus(out, (uint16_t)(3U + enc_len + extend_len));
 
     /* Append CRC16 MSB-first (big-endian). */
-    out[1U + enc_len + extend_len] = (uint8_t)((crc >> 8) & 0xFFU);
-    out[1U + enc_len + extend_len + 1U] = (uint8_t)(crc & 0xFFU);
+    out[3U + enc_len + extend_len] = (uint8_t)((crc >> 8) & 0xFFU);
+    out[3U + enc_len + extend_len + 1U] = (uint8_t)(crc & 0xFFU);
 
     return total;
 }
@@ -153,18 +183,19 @@ uint8_t emic_lora_parse_frame(const uint8_t pan_id[6],
     uint8_t cmd;
     uint8_t src_type;
     uint8_t dst_type;
-    uint8_t payload_plain_len;
     uint8_t extend_len;
     uint8_t enc_len;
     uint16_t crc_calc;
     uint16_t crc_rx;
     uint8_t key[16];
+    uint8_t flags;
+    uint8_t payload_len;
 
     if (pan_id == NULL || in == NULL || out == NULL)
     {
         return 0U;
     }
-    if (in_len < 3U)
+    if (in_len < 5U)
     {
         return 0U;
     }
@@ -172,15 +203,22 @@ uint8_t emic_lora_parse_frame(const uint8_t pan_id[6],
     cmd = (uint8_t)((in[0] >> 4) & 0x0FU);
     src_type = (uint8_t)((in[0] >> 2) & 0x03U);
     dst_type = (uint8_t)(in[0] & 0x03U);
+    flags = in[1];
+    payload_len = in[2];
 
-    if (!get_cmd_lengths(cmd, &payload_plain_len, &extend_len))
+    if (payload_len > 48U)
     {
         return 0U;
     }
 
-    enc_len = emic_lora_round_up_16(payload_plain_len);
+    if (!get_cmd_extend_len(cmd, &extend_len))
+    {
+        return 0U;
+    }
 
-    if (in_len != (uint8_t)(1U + enc_len + extend_len + 2U))
+    enc_len = emic_lora_round_up_16(payload_len);
+
+    if (in_len != (uint8_t)(3U + enc_len + extend_len + 2U))
     {
         return 0U;
     }
@@ -197,7 +235,9 @@ uint8_t emic_lora_parse_frame(const uint8_t pan_id[6],
     out->cmd = cmd;
     out->src_type = src_type;
     out->dst_type = dst_type;
-    out->payload_plain_len = payload_plain_len;
+    out->flags = flags;
+    out->ack_req = (flags & EMIC_LORA_FLAG_ACK_REQ) ? 1U : 0U;
+    out->payload_plain_len = payload_len;
     out->extend_len = extend_len;
 
     if (enc_len > sizeof(out->payload))
@@ -208,7 +248,7 @@ uint8_t emic_lora_parse_frame(const uint8_t pan_id[6],
     /* Copy encrypted payload then decrypt in-place. */
     if (enc_len != 0U)
     {
-        memcpy(out->payload, &in[1], enc_len);
+        memcpy(out->payload, &in[3], enc_len);
         emic_lora_derive_aes_key_from_pan_id(pan_id, key);
         emic_lora_aes_ecb_decrypt_inplace(key, out->payload, enc_len);
     }
@@ -219,7 +259,7 @@ uint8_t emic_lora_parse_frame(const uint8_t pan_id[6],
         {
             return 0U;
         }
-        memcpy(out->extend, &in[1U + enc_len], extend_len);
+        memcpy(out->extend, &in[3U + enc_len], extend_len);
     }
 
     return 1U;

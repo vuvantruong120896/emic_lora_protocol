@@ -154,9 +154,11 @@ static uint32_t s_tx_fcnt_inflight;
 static uint8_t s_tx_inflight;
 /** @brief Flag indicating inflight TX frame includes frame counter in payload. */
 static uint8_t s_tx_includes_fcnt;
+/** @brief Cached protocol ACK_REQ flag for the currently inflight TX frame. */
+static uint8_t s_tx_ack_req_inflight;
 
 /* ACK waiting / retry policy.
- * All ED->GW frames require GW ACK (CMD=0x08) except JoinRequest.
+ * ACK requirement is defined by protocol (frame flag EMIC_LORA_FLAG_ACK_REQ).
  */
 /** @brief Flag indicating link layer is waiting for ACK from gateway. */
 static uint8_t s_ack_waiting;
@@ -738,6 +740,9 @@ static uint8_t link_try_start_tx_cmd(uint8_t cmd,
         return 0U;
     }
 
+    /* Protocol decides ACK policy; link layer executes it. */
+    s_tx_ack_req_inflight = ((frame[1] & EMIC_LORA_FLAG_ACK_REQ) != 0U) ? 1U : 0U;
+
     radio_request_tx(frame, n);
     s_state = LINK_STATE_WAIT_TX;
     s_tx_inflight = 1U;
@@ -838,7 +843,10 @@ void lora_link_run(void)
                                               0U,
                                               1U))
                     {
-                        ack_start(TX_ACK_KIND_HEARTBEAT, fcnt, now2, 1U, 5U);
+                        if (s_tx_ack_req_inflight)
+                        {
+                            ack_start(TX_ACK_KIND_HEARTBEAT, fcnt, now2, 1U, 5U);
+                        }
                     }
                 }
                 else if (s_ack_kind == TX_ACK_KIND_ALARM)
@@ -859,7 +867,10 @@ void lora_link_run(void)
                                               0U,
                                               1U))
                     {
-                        ack_start(TX_ACK_KIND_ALARM, fcnt, now2, 2U, 0U);
+                        if (s_tx_ack_req_inflight)
+                        {
+                            ack_start(TX_ACK_KIND_ALARM, fcnt, now2, 2U, 0U);
+                        }
                     }
                 }
                 else if (s_ack_kind == TX_ACK_KIND_ALARM_STOP)
@@ -880,7 +891,10 @@ void lora_link_run(void)
                                               0U,
                                               1U))
                     {
-                        ack_start(TX_ACK_KIND_ALARM_STOP, fcnt, now2, 13U, 0U);
+                        if (s_tx_ack_req_inflight)
+                        {
+                            ack_start(TX_ACK_KIND_ALARM_STOP, fcnt, now2, 13U, 0U);
+                        }
                     }
                 }
                 else if (s_ack_kind == TX_ACK_KIND_EXIT)
@@ -901,7 +915,10 @@ void lora_link_run(void)
                                               0U,
                                               1U))
                     {
-                        ack_start(TX_ACK_KIND_EXIT, fcnt, now2, 2U, 3U);
+                        if (s_tx_ack_req_inflight)
+                        {
+                            ack_start(TX_ACK_KIND_EXIT, fcnt, now2, 2U, 3U);
+                        }
                     }
                 }
             }
@@ -972,7 +989,10 @@ void lora_link_run(void)
                                       1U))
             {
                 s_ack_attempts = 0U;
-                ack_start(TX_ACK_KIND_EXIT, fcnt, now2, 2U, 3U);
+                if (s_tx_ack_req_inflight)
+                {
+                    ack_start(TX_ACK_KIND_EXIT, fcnt, now2, 2U, 3U);
+                }
             }
         }
         if ((s_ack_waiting == 0U) && s_alarm_event_pending)
@@ -997,7 +1017,10 @@ void lora_link_run(void)
                                           1U))
                 {
                     s_ack_attempts = 0U;
-                    ack_start(TX_ACK_KIND_ALARM, fcnt, now2, 2U, 0U);
+                    if (s_tx_ack_req_inflight)
+                    {
+                        ack_start(TX_ACK_KIND_ALARM, fcnt, now2, 2U, 0U);
+                    }
                     /* Next alarm retry is driven by ACK timeout schedule. */
                 }
             }
@@ -1023,7 +1046,10 @@ void lora_link_run(void)
                                           1U))
                 {
                     s_ack_attempts = 0U;
-                    ack_start(TX_ACK_KIND_ALARM_STOP, fcnt, now2, 13U, 0U);
+                    if (s_tx_ack_req_inflight)
+                    {
+                        ack_start(TX_ACK_KIND_ALARM_STOP, fcnt, now2, 13U, 0U);
+                    }
                 }
             }
         }
@@ -1061,7 +1087,10 @@ void lora_link_run(void)
                                       1U))
             {
                 s_ack_attempts = 0U;
-                ack_start(TX_ACK_KIND_HEARTBEAT, fcnt, now2, 1U, 5U);
+                if (s_tx_ack_req_inflight)
+                {
+                    ack_start(TX_ACK_KIND_HEARTBEAT, fcnt, now2, 1U, 5U);
+                }
             }
         }
     }

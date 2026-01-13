@@ -11,7 +11,7 @@
 
 #include "heartbeat_service.h"
 
-#include "../link/lora_stack.h"
+#include "../mac/lora_stack.h"
 
 void heartbeat_service_init(void)
 {

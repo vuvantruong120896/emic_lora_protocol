@@ -3,7 +3,7 @@
  * @brief LoRa frame build/parse and protocol definitions for EMIC node-to-GW communication.
  *
  * @details
- * - Frame format: Header(1B) + Encrypted_Payload(0..48B) + Extend(0..16B) + CRC16(2B)
+ * - Frame format (V1.1): Header0(1B) + Flags(1B) + PayloadLen(1B) + Encrypted_Payload(0..48B) + Extend(0..16B) + CRC16(2B)
  * - Encryption: AES-ECB with key derived from PanID
  * - CRC: CRC-16/MODBUS over header+payload+extend
  *
@@ -50,11 +50,18 @@ typedef enum
     EMIC_LORA_DST_ED_1 = 3
 } emic_lora_dst_type_t;
 
+/* V1.1 header flags (byte 1). */
+#define EMIC_LORA_FLAG_ACK_REQ   (0x01U)
+
 typedef struct
 {
     uint8_t cmd;      /* 4-bit value (0x0..0xF) */
     uint8_t src_type; /* 2-bit */
     uint8_t dst_type; /* 2-bit */
+
+    /* V1.1 flags byte (raw), includes ACK policy. */
+    uint8_t flags;
+    uint8_t ack_req;
 
     /* Decrypted payload bytes.
      * NOTE: payload is padded to 16-byte boundary before encryption; use

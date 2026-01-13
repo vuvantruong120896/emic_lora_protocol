@@ -27,7 +27,7 @@
 #include "../drv/button/button.h"
 #include "../drv/battery/battery.h"
 
-#include "../link/lora_stack.h"
+#include "../mac/lora_stack.h"
 #include "../services/alarm_service.h"
 #include "../services/heartbeat_service.h"
 #include "../services/power_service.h"

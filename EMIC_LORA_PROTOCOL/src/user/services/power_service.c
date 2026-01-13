@@ -16,7 +16,7 @@
 #include "r_smc_entry.h"
 
 #include "alarm_service.h"
-#include "../link/lora_stack.h"
+#include "../mac/lora_stack.h"
 
 #include "../drv/button/button.h"
 

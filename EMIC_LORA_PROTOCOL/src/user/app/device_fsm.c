@@ -20,7 +20,7 @@
 
 #include "../drv/store/nv_store.h"
 #include "../hal/hal_rtc.h"
-#include "../link/lora_stack.h"
+#include "../mac/lora_stack.h"
 #include "../services/alarm_service.h"
 #include "../services/heartbeat_service.h"
 #include "../utils/log_control.h"
