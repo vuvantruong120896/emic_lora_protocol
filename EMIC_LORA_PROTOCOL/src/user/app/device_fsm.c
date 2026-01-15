@@ -20,9 +20,8 @@
 
 #include "../drv/store/nv_store.h"
 #include "../hal/hal_rtc.h"
-#include "../mac/lora_mac.h"
 #include "../services/alarm_service.h"
-#include "../services/heartbeat_service.h"
+#include "../services/lora_service.h"
 #include "../utils/log_control.h"
 
 /** @brief Event queue capacity (maximum pending events before dropping). */
@@ -80,7 +79,7 @@ static void device_fsm_recompute_state(void)
 
     if ((prev != DEVICE_STATE_ALARM) && (s_state == DEVICE_STATE_ALARM))
     {
-        if (lora_mac_is_rtc_synced() != 0U)
+        if (lora_service_is_rtc_synced() != 0U)
         {
             hal_rtc_time_t t;
             if (hal_rtc_get_time(&t) == 0)
@@ -111,7 +110,7 @@ static void device_fsm_set_join_mode(uint8_t on)
         return;
     }
 
-    if ((v != 0U) && (lora_mac_is_joined() != 0U))
+    if ((v != 0U) && (lora_service_is_joined() != 0U))
     {
         return;
     }
@@ -122,13 +121,13 @@ static void device_fsm_set_join_mode(uint8_t on)
     {
         alarm_service_set_joining(1U);
         alarm_service_stop_prejoin_test();
-        lora_mac_set_join_mode(1U);
+        lora_service_set_join_mode(1U);
         log_info("%s", "join_mode: ENTER");
     }
     else
     {
         alarm_service_set_joining(0U);
-        lora_mac_set_join_mode(0U);
+        lora_service_set_join_mode(0U);
         log_info("%s", "join_mode: EXIT");
     }
 
@@ -172,7 +171,7 @@ static void device_fsm_handle_smoke_detected(void)
     log_info("%s", "smoke: FIRE_DETECTED");
     s_smoke_active = 1U;
     device_fsm_set_local_alarm(1U);
-    lora_mac_notify_local_alarm();
+    lora_service_notify_alarm();
 }
 
 /**
@@ -189,7 +188,7 @@ static void device_fsm_handle_smoke_cleared(void)
     if (s_test_hold_active == 0U)
     {
         device_fsm_set_local_alarm(0U);
-        lora_mac_notify_local_alarm_cleared();
+        lora_service_notify_alarm_cleared();
     }
 }
 
@@ -241,7 +240,7 @@ static void device_fsm_handle_event(device_event_t ev)
             device_fsm_set_remote_alarm(0U);
             alarm_service_clear_remote_silence();
             nv_store_factory_reset();
-            lora_mac_init();
+            lora_service_init();
             break;
 
         case DEVICE_EVENT_BTN_TEST:
@@ -253,7 +252,7 @@ static void device_fsm_handle_event(device_event_t ev)
             {
                 break;
             }
-            if (lora_mac_is_joined() == 0U)
+            if (lora_service_is_joined() == 0U)
             {
                 log_info("%s", "button: TEST (pre-join) 8s");
                 alarm_service_start_prejoin_test_for_s(8U);
@@ -265,14 +264,14 @@ static void device_fsm_handle_event(device_event_t ev)
             {
                 break;
             }
-            if (lora_mac_is_joined() == 0U)
+            if (lora_service_is_joined() == 0U)
             {
                 break;
             }
             log_info("%s", "button: TEST hold -> ALARM ON");
             s_test_hold_active = 1U;
             device_fsm_set_local_alarm(1U);
-            lora_mac_notify_local_alarm();
+            lora_service_notify_alarm();
             break;
 
         case DEVICE_EVENT_BTN_TEST_HOLD_ALARM_STOP:
@@ -286,7 +285,7 @@ static void device_fsm_handle_event(device_event_t ev)
             if (s_smoke_active == 0U)
             {
                 device_fsm_set_local_alarm(0U);
-                lora_mac_notify_local_alarm_cleared();
+                lora_service_notify_alarm_cleared();
             }
             break;
 
@@ -296,7 +295,7 @@ static void device_fsm_handle_event(device_event_t ev)
                 break;
             }
             log_info("%s", "button: JOIN_REQUEST");
-            lora_mac_request_join();
+            lora_service_request_join();
             break;
 
         case DEVICE_EVENT_BTN_EXIT:
@@ -305,7 +304,7 @@ static void device_fsm_handle_event(device_event_t ev)
                 break;
             }
             log_info("%s", "button: EXIT");
-            lora_mac_request_exit();
+            lora_service_request_exit();
             break;
 
         case DEVICE_EVENT_BTN_CONFIRM:
@@ -320,7 +319,7 @@ static void device_fsm_handle_event(device_event_t ev)
             break;
 
         case DEVICE_EVENT_LINK_HEARTBEAT_DUE:
-            heartbeat_service_send();
+            lora_service_send_heartbeat();
             break;
 
         case DEVICE_EVENT_LINK_REMOTE_ALARM_ON:

@@ -1,15 +1,13 @@
 /**
  * @file emic_lora_crypto.c
- * @brief Implementation of cryptographic utilities: key derivation and AES-ECB cipher.
+ * @brief Implementation of AES-128-CCM cryptographic utilities for V2.0.
  *
  * @details
- * - Key derivation uses a template key with PanID injection + CRC16 finalization
- * - AES-128 ECB mode encryption/decryption
- * - All operations are in-place (data buffer is modified)
+ * V2.0: AES-128-CCM (AEAD) with 13-byte nonce and 4-byte MIC
  *
  * @author EMIC Project
- * @version 1.0.0
- * @date 2026-01-09
+ * @version 2.0.0
+ * @date 2026-01-14
  */
 
 #include "emic_lora_crypto.h"
@@ -17,77 +15,172 @@
 #include <string.h>
 #include <stddef.h>
 
-#include "emic_lora_crc16_modbus.h"
+/* TinyCrypt for AES-128-CCM */
+#include "../tinycrypt/include/tinycrypt_ccm_mode.h"
+#include "../tinycrypt/include/tinycrypt_aes.h"
+#include "../tinycrypt/include/tinycrypt_constants.h"
 
-#include "../utils/aes128.h"
+/* ============================================================================
+ * V2.0 AES-128-CCM Implementation
+ * ============================================================================ */
 
 /**
- * @brief AES-128 template key (16 bytes).
+ * @brief Build 13-byte nonce for AES-CCM (V2.0).
  *
- * Session key derivation process:
- * - bytes[0..5]: overwritten with PanID
- * - bytes[6..13]: kept from template
- * - bytes[14..15]: overwritten with CRC16(bytes[0..13])
+ * Nonce layout: ctx6(6) | src(2) | msg_id(3) | direction(1) | key_id(1)
  */
-static const uint8_t s_key_template[16] = {
-    0x2b, 0x7e, 0x15, 0x16, 0x28, 0xae, 0xd2, 0xa6,
-    0xab, 0xf7, 0x15, 0x88, 0x09, 0xcf, 0x4f, 0x3c
-};
-
-void emic_lora_derive_aes_key_from_pan_id(const uint8_t pan_id[6], uint8_t out_key[16])
+void emic_lora_build_nonce(const uint8_t ctx6[6],
+                            uint16_t src,
+                            uint32_t msg_id,
+                            uint8_t direction,
+                            uint8_t key_id,
+                            uint8_t out_nonce[13])
 {
-    uint16_t crc;
-
-    memcpy(out_key, s_key_template, 16);
-
-    /* PanID bytes 0..5 */
-    memcpy(&out_key[0], pan_id, 6);
-
-    /* CRC16 over first 14 bytes */
-    crc = emic_lora_crc16_modbus(out_key, 14);
-
-    /* bytes 14..15 = CRC16(0..13) */
-    out_key[14] = (uint8_t)((crc >> 8) & 0xFFU);
-    out_key[15] = (uint8_t)(crc & 0xFFU);
-}
-
-uint8_t emic_lora_round_up_16(uint8_t n)
-{
-    return (uint8_t)((n + 15U) & (uint8_t)0xF0U);
-}
-
-void emic_lora_aes_ecb_encrypt_inplace(const uint8_t key[16], uint8_t *data, uint8_t len)
-{
-    uint8_t offset = 0U;
-
-    if (data == NULL || len == 0U)
+    if (ctx6 == NULL || out_nonce == NULL)
     {
         return;
     }
 
-    aes128_init(key);
+    /* ctx6: bytes 0-5 (network ID or device serial) */
+    memcpy(&out_nonce[0], ctx6, 6);
 
-    while (offset < len)
-    {
-        aes128_encrypt_block(&data[offset], &data[offset]);
-        offset = (uint8_t)(offset + 16U);
-    }
+    /* src: bytes 6-7 (big-endian) */
+    out_nonce[6] = (uint8_t)(src >> 8);
+    out_nonce[7] = (uint8_t)(src & 0xFFU);
+
+    /* msg_id: bytes 8-10 (24-bit big-endian) */
+    out_nonce[8] = (uint8_t)(msg_id >> 16);
+    out_nonce[9] = (uint8_t)(msg_id >> 8);
+    out_nonce[10] = (uint8_t)(msg_id & 0xFFU);
+
+    /* direction: byte 11 (0x00=ED→GW, 0x01=GW→ED) */
+    out_nonce[11] = direction;
+
+    /* key_id: byte 12 (0=K0, 1=K1) */
+    out_nonce[12] = key_id;
 }
 
-void emic_lora_aes_ecb_decrypt_inplace(const uint8_t key[16], uint8_t *data, uint8_t len)
+/**
+ * @brief AES-CCM encryption using TinyCrypt (production-ready).
+ *
+ * @note Uses tc_ccm_generation_encryption() from TinyCrypt library.
+ *       AES-128-CCM with 13-byte nonce and 4-byte MIC.
+ */
+uint8_t emic_lora_aes_ccm_encrypt(const uint8_t key[16],
+                                   const uint8_t nonce[13],
+                                   const uint8_t *aad,
+                                   uint8_t aad_len,
+                                   const uint8_t *plaintext,
+                                   uint8_t plaintext_len,
+                                   uint8_t *ciphertext,
+                                   uint8_t mic[4])
 {
-    uint8_t offset = 0U;
+    struct tc_aes_key_sched_struct sched;
+    struct tc_ccm_mode_struct ccm;
+    uint8_t output_buffer[64]; /* plaintext_len + 4 bytes MIC */
+    int result;
 
-    if (data == NULL || len == 0U)
+    /* Validate inputs */
+    if (key == NULL || nonce == NULL || ciphertext == NULL || mic == NULL)
     {
-        return;
+        return 0;
     }
 
-    aes128_init(key);
-
-    while (offset < len)
+    if (plaintext_len > 50)
     {
-        aes128_decrypt_block(&data[offset], &data[offset]);
-        offset = (uint8_t)(offset + 16U);
+        return 0;
     }
+
+    /* Initialize AES key schedule */
+    if (tc_aes128_set_encrypt_key(&sched, key) != TC_CRYPTO_SUCCESS)
+    {
+        return 0;
+    }
+
+    /* Configure CCM mode (13-byte nonce, 4-byte MIC) */
+    if (tc_ccm_config(&ccm, &sched, (uint8_t *)nonce, 13, 4) != TC_CRYPTO_SUCCESS)
+    {
+        return 0;
+    }
+
+    /* Encrypt and generate authentication tag */
+    result = tc_ccm_generation_encryption(output_buffer,
+                                          plaintext_len + 4,
+                                          aad,
+                                          aad_len,
+                                          plaintext,
+                                          plaintext_len,
+                                          &ccm);
+
+    if (result != TC_CRYPTO_SUCCESS)
+    {
+        return 0;
+    }
+
+    /* Copy ciphertext and MIC */
+    memcpy(ciphertext, output_buffer, plaintext_len);
+    memcpy(mic, &output_buffer[plaintext_len], 4);
+
+    return 1;
 }
+
+/**
+ * @brief AES-CCM decryption and verification using TinyCrypt (production-ready).
+ *
+ * @note Uses tc_ccm_decryption_verification() from TinyCrypt library.
+ *       Returns 1 if decryption successful and MIC valid, 0 otherwise.
+ */
+uint8_t emic_lora_aes_ccm_decrypt(const uint8_t key[16],
+                                   const uint8_t nonce[13],
+                                   const uint8_t *aad,
+                                   uint8_t aad_len,
+                                   const uint8_t *ciphertext,
+                                   uint8_t ciphertext_len,
+                                   const uint8_t received_mic[4],
+                                   uint8_t *plaintext)
+{
+    struct tc_aes_key_sched_struct sched;
+    struct tc_ccm_mode_struct ccm;
+    uint8_t input_buffer[64]; /* ciphertext_len + 4 bytes MIC */
+    int result;
+
+    /* Validate inputs */
+    if (key == NULL || nonce == NULL || ciphertext == NULL ||
+        received_mic == NULL || plaintext == NULL)
+    {
+        return 0;
+    }
+
+    if (ciphertext_len > 50)
+    {
+        return 0;
+    }
+
+    /* Initialize AES key schedule */
+    if (tc_aes128_set_encrypt_key(&sched, key) != TC_CRYPTO_SUCCESS)
+    {
+        return 0;
+    }
+
+    /* Configure CCM mode (13-byte nonce, 4-byte MIC) */
+    if (tc_ccm_config(&ccm, &sched, (uint8_t *)nonce, 13, 4) != TC_CRYPTO_SUCCESS)
+    {
+        return 0;
+    }
+
+    /* Prepare input buffer: ciphertext + MIC */
+    memcpy(input_buffer, ciphertext, ciphertext_len);
+    memcpy(&input_buffer[ciphertext_len], received_mic, 4);
+
+    /* Decrypt and verify authentication tag */
+    result = tc_ccm_decryption_verification(plaintext,
+                                            aad,
+                                            aad_len,
+                                            input_buffer,
+                                            ciphertext_len + 4,
+                                            &ccm);
+
+    /* Return 1 if authentication successful, 0 if failed */
+    return (result == TC_CRYPTO_SUCCESS) ? 1 : 0;
+}
+

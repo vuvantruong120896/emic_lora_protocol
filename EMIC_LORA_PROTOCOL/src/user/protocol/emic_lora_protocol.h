@@ -3,13 +3,19 @@
  * @brief LoRa frame build/parse and protocol definitions for EMIC node-to-GW communication.
  *
  * @details
- * - Frame format (V1.1): Header0(1B) + Flags(1B) + PayloadLen(1B) + Encrypted_Payload(0..48B) + Extend(0..16B) + CRC16(2B)
- * - Encryption: AES-ECB with key derived from PanID
- * - CRC: CRC-16/MODBUS over header+payload+extend
+ * - Frame format: MAC Header(10B) + Encrypted_Payload(0..50B) + MIC(4B)
+ * - Encryption: AES-128-CCM (AEAD) with session keys
+ * - Anti-replay: msg_id (24-bit counter) with window=1 (strictly monotonic)
+ * - Header: ver_type(1) + flags(1) + msg_id(3) + src(2) + dst(2) + len(1)
+ * - MIC: 4-byte AES-CCM authentication tag protecting header (AAD) + payload
+ * - Nonce: 13 bytes = ctx6(6) + src(2) + msg_id(3) + dir(1) + key_id(1)
+ *
+ * @see emic_lora_protocol_frame_spec.md for detailed wire format
+ * @see emic_lora_stack_architecture.md for layer responsibilities
  *
  * @author EMIC Project
- * @version 1.0.0
- * @date 2026-01-09
+ * @version 2.0.0
+ * @date 2026-01-13
  */
 
 #ifndef EMIC_LORA_PROTOCOL_H
@@ -21,105 +27,178 @@
 extern "C" {
 #endif
 
+/* Message Types (TYPE field is 6-bit = 0..63) */
 typedef enum
 {
-    EMIC_LORA_CMD_JOIN_REQUEST      = 0x01,
-    EMIC_LORA_CMD_JOIN_ACCEPT       = 0x02,
-    EMIC_LORA_CMD_ALARM             = 0x03,
-    EMIC_LORA_CMD_ALARM_STOP        = 0x04,
-    EMIC_LORA_CMD_SILENCE           = 0x05,
-    EMIC_LORA_CMD_ENTER_OPERATION   = 0x06,
-    EMIC_LORA_CMD_ACK               = 0x08,
-    EMIC_LORA_CMD_HEARTBEAT         = 0x09,
-    EMIC_LORA_CMD_EXIT              = 0x0B,
-    EMIC_LORA_CMD_EXIT_GW           = 0x0C,
-    EMIC_LORA_CMD_TEST_ED           = 0x0D
-} emic_lora_cmd_t;
+    /* Core Messages (3) */
+    EMIC_LORA_TYPE_JOIN_REQ        = 0x01,  /* ED → GW: Join request */
+    EMIC_LORA_TYPE_JOIN_ACCEPT     = 0x02,  /* GW → ED: Join accept/reject */
+    EMIC_LORA_TYPE_ACK             = 0x08,  /* Bidirectional ACK */
 
-typedef enum
-{
-    EMIC_LORA_SRC_ED = 0,
-    EMIC_LORA_SRC_GW = 1
-} emic_lora_src_type_t;
+    /* Alarm/Sensor (3) */
+    EMIC_LORA_TYPE_ALARM           = 0x03,  /* ED → GW: Alarm event */
+    EMIC_LORA_TYPE_ALARM_CLEAR     = 0x04,  /* ED → GW: Alarm cleared */
+    EMIC_LORA_TYPE_HEARTBEAT       = 0x09,  /* ED → GW: Health check */
 
-typedef enum
-{
-    EMIC_LORA_DST_ED_ALL = 0,
-    EMIC_LORA_DST_GW = 1,
-    EMIC_LORA_DST_BUZZER_LIGHT = 2,
-    EMIC_LORA_DST_ED_1 = 3
-} emic_lora_dst_type_t;
+    /* Control (2) */
+    EMIC_LORA_TYPE_SIREN_SILENCE   = 0x05,  /* GW → ED: Silence siren (broadcast) */
+    EMIC_LORA_TYPE_SET_OPERATIONAL = 0x06,  /* GW → ED: Enter operational mode */
 
-/* V1.1 header flags (byte 1). */
-#define EMIC_LORA_FLAG_ACK_REQ   (0x01U)
+    /* Maintenance (3) */
+    EMIC_LORA_TYPE_LEAVE_NETWORK   = 0x0B,  /* ED → GW: Leave network request */
+    EMIC_LORA_TYPE_GW_SHUTDOWN     = 0x0C,  /* GW → ED: GW shutting down */
+    EMIC_LORA_TYPE_PING            = 0x0D,  /* GW → ED: Connectivity check */
 
+    /* Fault Management (2) */
+    EMIC_LORA_TYPE_FAULT_REPORT    = 0x0E,  /* ED → GW: Fault report */
+    EMIC_LORA_TYPE_FAULT_CLEAR     = 0x0F,  /* ED → GW: Fault cleared */
+
+    /* Configuration (3) */
+    EMIC_LORA_TYPE_CFG_SET         = 0x10,  /* GW → ED: Set configuration */
+    EMIC_LORA_TYPE_CFG_RSP         = 0x11,  /* ED → GW: Configuration response */
+    EMIC_LORA_TYPE_TIME_SYNC       = 0x12,  /* GW → ED: Time sync (broadcast) */
+    EMIC_LORA_TYPE_GROUP_SET       = 0x13   /* GW → ED: Set group membership */
+} emic_lora_type_t;
+
+/* Protocol version (2-bit field in ver_type byte) */
+#define EMIC_LORA_VERSION             (0x01U)  /* Version 2 = 0b01 */
+
+/* Flags byte (bit layout) */
+#define EMIC_LORA_FLAG_KEY            (0x01U)  /* Bit 0: Key selector (0=K0, 1=K1) */
+#define EMIC_LORA_FLAG_ENC            (0x02U)  /* Bit 1: Encryption enabled (must be 1) */
+#define EMIC_LORA_FLAG_ACK_REQ        (0x04U)  /* Bit 2: ACK requested */
+#define EMIC_LORA_FLAG_ACK            (0x08U)  /* Bit 3: This is an ACK frame */
+#define EMIC_LORA_FLAG_BCAST          (0x10U)  /* Bit 4: Broadcast (dst=0xFFFF) */
+/* Bits 5-7: Reserved (must be 0) */
+
+/* Special addresses (16-bit) */
+#define EMIC_LORA_ADDR_GW             (0x0000U)  /* Gateway address */
+#define EMIC_LORA_ADDR_BROADCAST      (0xFFFFU)  /* Broadcast address */
+#define EMIC_LORA_ADDR_UNJOINED       (0xFFFFU)  /* Unjoined ED address */
+
+/* Frame constraints */
+#define EMIC_LORA_HEADER_SIZE         (10U)  /* MAC header size */
+#define EMIC_LORA_MIC_SIZE            (4U)   /* MIC size (AES-CCM auth tag) */
+#define EMIC_LORA_MAX_PAYLOAD_SIZE    (50U)  /* Max payload (64 - 10 - 4) */
+#define EMIC_LORA_NONCE_SIZE          (13U)  /* Nonce size for AES-CCM */
+#define EMIC_LORA_KEY_SIZE            (16U)  /* AES-128 key size */
+
+/**
+ * @brief Parsed EMIC LoRa frame structure.
+ * @details Represents a decoded frame after parsing and decryption.
+ */
 typedef struct
 {
-    uint8_t cmd;      /* 4-bit value (0x0..0xF) */
-    uint8_t src_type; /* 2-bit */
-    uint8_t dst_type; /* 2-bit */
+    /* Header fields (parsed from 10-byte MAC header) */
+    uint8_t  ver;         /* Protocol version (2-bit from ver_type) */
+    uint8_t  type;        /* Message type (6-bit from ver_type) */
+    uint8_t  flags;       /* Flags byte (KEY, ENC, ACK_REQ, ACK, BCAST) */
+    uint32_t msg_id;      /* Message ID (24-bit counter, big-endian) */
+    uint16_t src;         /* Source address (16-bit, big-endian) */
+    uint16_t dst;         /* Destination address (16-bit, big-endian) */
+    uint8_t  len;         /* Payload length (0..50) */
 
-    /* V1.1 flags byte (raw), includes ACK policy. */
-    uint8_t flags;
-    uint8_t ack_req;
+    /* Derived flags (for convenience) */
+    uint8_t  key_id;      /* Key ID: 0=K0 (bootstrap), 1=K1 (operational) */
+    uint8_t  encrypted;   /* 1 if ENC flag set (must be 1 for encrypted frames) */
+    uint8_t  ack_req;     /* 1 if ACK_REQ flag set */
+    uint8_t  is_ack;      /* 1 if ACK flag set */
+    uint8_t  broadcast;   /* 1 if BCAST flag set */
 
-    /* Decrypted payload bytes.
-     * NOTE: payload is padded to 16-byte boundary before encryption; use
-     * payload_plain_len to know how many leading bytes are meaningful.
-     */
-    uint8_t payload[48];
-    uint8_t payload_plain_len;
+    /* Decrypted payload (0..50 bytes, actual length in 'len') */
+    uint8_t  payload[EMIC_LORA_MAX_PAYLOAD_SIZE];
 
-    /* Extend field bytes (plaintext). */
-    uint8_t extend[16];
-    uint8_t extend_len;
+    /* MIC verification status (set after parse) */
+    uint8_t  mic_valid;   /* 1 if MIC verification passed, 0 otherwise */
 } emic_lora_frame_t;
 
 /**
- * @brief Build a LoRa frame with encryption and CRC.
+ * @brief Build a LoRa frame with AES-CCM encryption and MIC.
  *
- * @param pan_id[6] PanID (6 bytes, used for key derivation)
- * @param cmd Command type (see emic_lora_cmd_t)
- * @param src_type Source type (see emic_lora_src_type_t)
- * @param dst_type Destination type (see emic_lora_dst_type_t)
- * @param payload_plain Plaintext payload buffer (will be zero-padded to 16-byte blocks)
- * @param payload_plain_len Length of plaintext payload
- * @param extend Plaintext extend field bytes (not encrypted)
- * @param extend_len Length of extend field
- * @param out Output frame buffer
- * @param out_max Maximum output buffer size
+ * @param ctx6[6]         Context for nonce (net_id after join, or seri_ed during join)
+ * @param key[16]         AES-128 key (K0 or K1)
+ * @param type            Message type (see emic_lora_type_t)
+ * @param flags           Flags byte (KEY, ENC, ACK_REQ, ACK, BCAST)
+ * @param msg_id          Message ID (24-bit counter)
+ * @param src             Source address (16-bit)
+ * @param dst             Destination address (16-bit)
+ * @param payload_plain   Plaintext payload buffer
+ * @param payload_len     Payload length (0..50)
+ * @param out             Output frame buffer
+ * @param out_max         Maximum output buffer size
  *
- * @return Frame length on success, 0 on error (invalid param, buffer overflow, etc.)
+ * @return Frame length on success (10 + payload_len + 4), 0 on error
  *
- * @note CRC16 is appended MSB-first (big-endian)
+ * @note
+ * - Frame format: Header(10B) + Encrypted_Payload(N) + MIC(4B)
+ * - Header is AAD (Additional Authenticated Data) - not encrypted
+ * - Payload is encrypted with AES-128-CCM
+ * - MIC protects both header and payload
+ * - Nonce = ctx6(6) + src(2) + msg_id(3) + dir(1) + key_id(1)
+ * - Direction: 0x01 if src==GW (GW→ED), 0x00 if src!=GW (ED→GW)
  */
-uint8_t emic_lora_build_frame(const uint8_t pan_id[6],
-                             uint8_t cmd,
-                             uint8_t src_type,
-                             uint8_t dst_type,
-                             const uint8_t *payload_plain,
-                             uint8_t payload_plain_len,
-                             const uint8_t *extend,
-                             uint8_t extend_len,
-                             uint8_t *out,
-                             uint8_t out_max);
+uint8_t emic_lora_build_frame(const uint8_t ctx6[6],
+                                  const uint8_t key[16],
+                                  uint8_t type,
+                                  uint8_t flags,
+                                  uint32_t msg_id,
+                                  uint16_t src,
+                                  uint16_t dst,
+                                  const uint8_t *payload_plain,
+                                  uint8_t payload_len,
+                                  uint8_t *out,
+                                  uint8_t out_max);
 
 /**
- * @brief Parse and decrypt a LoRa frame.
+ * @brief Parse and decrypt a LoRa frame with AES-CCM verification.
  *
- * @param pan_id[6] PanID (6 bytes, used for key derivation)
- * @param in Input frame buffer
- * @param in_len Input frame length
- * @param out Parsed frame structure (decrypted payload and extend fields)
+ * @param ctx6[6]    Context for nonce (net_id or seri_ed)
+ * @param key[16]    AES-128 key (K0 or K1)
+ * @param in         Input frame buffer
+ * @param in_len     Input frame length
+ * @param out        Parsed frame structure (decrypted payload)
  *
- * @return 1 on success, 0 on error (invalid format, CRC mismatch, decrypt error, etc.)
+ * @return 1 on success (MIC valid), 0 on error (invalid format, MIC fail, etc.)
  *
- * @note Payload is zero-padded to 16-byte boundary during encryption; use payload_plain_len to know actual length.
+ * @note
+ * - Validates frame format (min 14 bytes = 10 header + 0 payload + 4 MIC)
+ * - Verifies ENC flag is set
+ * - Validates payload length (len <= 50)
+ * - Constructs nonce from header fields
+ * - Verifies MIC using AES-CCM
+ * - Decrypts payload if MIC valid
+ * - Sets out->mic_valid = 1 on success, 0 on failure
  */
-uint8_t emic_lora_parse_frame(const uint8_t pan_id[6],
-                             const uint8_t *in,
-                             uint8_t in_len,
-                             emic_lora_frame_t *out);
+uint8_t emic_lora_parse_frame(const uint8_t ctx6[6],
+                                  const uint8_t key[16],
+                                  const uint8_t *in,
+                                  uint8_t in_len,
+                                  emic_lora_frame_t *out);
+
+/**
+ * @brief Reset protocol anti-replay tracking state.
+ * @details Clears all tracked (src, dir, key_id) tuples.
+ *
+ * @note
+ * - Anti-replay policy is window=1 (strictly monotonic)
+ * - Tracking key is (src, dir, key_id)
+ */
+void emic_lora_antireplay_reset(void);
+
+/**
+ * @brief Anti-replay check and update (window=1).
+ *
+ * @param src        Source address from parsed frame header
+ * @param direction  Direction (nonce dir): 0x00=ED→GW, 0x01=GW→ED
+ * @param key_id     Key selector: 0=K0, 1=K1
+ * @param msg_id     Message ID from parsed frame header
+ *
+ * @return 1 if accepted (msg_id strictly increases for the tuple), 0 if rejected
+ */
+uint8_t emic_lora_antireplay_check_and_update(uint16_t src,
+                                               uint8_t direction,
+                                               uint8_t key_id,
+                                               uint32_t msg_id);
 
 #ifdef __cplusplus
 }

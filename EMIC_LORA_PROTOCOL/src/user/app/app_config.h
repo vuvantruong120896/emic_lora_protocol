@@ -1,102 +1,70 @@
 /**
  * @file app_config.h
- * @brief Application configuration constants and identities.
- * @details Defines RF parameters (frequency, spreading factor, bandwidth), timing windows
- *          (CAD period, RX after TX/join), heartbeat policy, power mode behavior, security
- *          keys, and protocol identifiers. All values are MVP (minimum viable product) fixed
- *          or placeholders for provisioning via flash/eFuse.
+ * @brief Application-level configuration constants (Layer 7).
+ * @details Defines application-specific thresholds and policies:
+ *          - Gateway offline detection timeout
+ *          - Battery low threshold
+ *          - Application-level timing
+ *
+ *          **Layering:** This file is Layer 7 (application) and should ONLY be included
+ *          by app-level code (app_main, device_fsm). Lower layers (services, MAC, radio)
+ *          must use system_config.h instead.
+ *
+ *          **Migration Note:** System-wide constants (RF, MAC, protocol) have been moved
+ *          to system_config.h to fix layering violations.
+ *
  * @author EMIC Team
  * @version 1.0.0
- * @date 2026-01-11
+ * @date 2026-01-14
  */
 
 #ifndef APP_CONFIG_H
 #define APP_CONFIG_H
 
-/** @brief RF frequency in Hz (920-923 MHz ISM band center). */
-#define APP_RF_FREQ_HZ               (920225000UL)
-/** @brief TX output power in dBm. */
-#define APP_RF_TX_POWER_DBM          (14)
+#include "../config/system_config.h"  /* Include system-level config for backward compatibility */
 
-/** @brief LoRa spreading factor (7). */
-#define APP_LORA_SF                  (7)
-/** @brief LoRa bandwidth in Hz (125 kHz). */
-#define APP_LORA_BW                  (125000UL)
-/** @brief LoRa coding rate (1 = 4/5; implementation-defined). */
-#define APP_LORA_CR                  (1)
+/*******************************************************************************
+ * Application-Level Configuration (Layer 7: App)
+ ******************************************************************************/
 
-/** @brief CAD preamble symbols (8 for discovery). */
-#define APP_DL_PREAMBLE_SYMBOLS      (8)
-/** @brief CAD detection symbols (4). */
-#define APP_CAD_SYMBOLS              (4)
-/** @brief CAD scan period in milliseconds (downlink paging interval). */
-#define APP_CAD_SCAN_PERIOD_MS       (5000U)
-/** @brief RX window after CAD detection (12ms, must find RX start in this window). */
-#define APP_RX_AFTER_CAD_MS          (120U)
-
-/** @brief RX window after uplink TX for gateway ACK/commands. */
-#define APP_RX_AFTER_TX_MS           (120U)
-
-/** @brief Extended RX window after Join Request for Join Accept. */
-#define APP_RX_AFTER_JOIN_TX_MS      (900U)
-
-/**
- * @brief Allow STOP power mode during radio operations.
- * @details 0 = use HALT (reliable, waits for DIO1 in ISR)
- *          1 = allow STOP (lower power, requires DIO1→INTP0 wake to work)
- *          Default 1 = STOP mode for power saving (requires proper ISR wiring).
- */
-#define APP_STOP_DURING_RADIO         (1)
-
-/** @brief Heartbeat transmission period in seconds. */
-#define APP_HEARTBEAT_PERIOD_S       (240U)
-/** @brief Random jitter added to heartbeat period in seconds. */
-#define APP_HEARTBEAT_JITTER_S       (3U)
 /** @brief Timeout for gateway offline detection (no beacon) in seconds. */
 #define APP_OFFLINE_TIMEOUT_S        (300U)
 
 /** @brief Battery low threshold in millivolts (ADC reading). */
 #define APP_BATTERY_LOW_MV           (3000U)
 
-/** @brief Gateway beacon frame type (0xA2 for time sync + gateway-loss detection). */
-#define APP_FRAME_TYPE_GW_BEACON     (0xA2U)
-/** @brief Gateway offline timeout in seconds (node-side beacon age detection). */
-#define APP_GW_LOST_TIMEOUT_S        (300U)
+/*******************************************************************************
+ * Legacy Aliases (for backward compatibility)
+ * TODO: Remove these after updating all callsites to use SYSTEM_* prefix
+ ******************************************************************************/
 
-/** @brief Device PAN ID (network identifier, 6 bytes big-endian, provisioned). */
-extern const unsigned char APP_PAN_ID[6];
-/** @brief Device serial/ED (unique identifier, 6 bytes, provisioned). */
-extern const unsigned char APP_SERI_ED[6];
+#define APP_RF_FREQ_HZ               SYSTEM_RF_FREQ_HZ
+#define APP_RF_TX_POWER_DBM          SYSTEM_RF_TX_POWER_DBM
+#define APP_LORA_SF                  SYSTEM_LORA_SF
+#define APP_LORA_BW                  SYSTEM_LORA_BW
+#define APP_LORA_CR                  SYSTEM_LORA_CR
+#define APP_DL_PREAMBLE_SYMBOLS      SYSTEM_DL_PREAMBLE_SYMBOLS
+#define APP_CAD_SYMBOLS              SYSTEM_CAD_SYMBOLS
+#define APP_CAD_SCAN_PERIOD_MS       SYSTEM_CAD_SCAN_PERIOD_MS
+#define APP_RX_AFTER_CAD_MS          SYSTEM_RX_AFTER_CAD_MS
+#define APP_RX_AFTER_TX_MS           SYSTEM_RX_AFTER_TX_MS
+#define APP_RX_AFTER_JOIN_TX_MS      SYSTEM_RX_AFTER_JOIN_TX_MS
+#define APP_STOP_DURING_RADIO        SYSTEM_STOP_DURING_RADIO
+#define APP_HEARTBEAT_PERIOD_S       SYSTEM_HEARTBEAT_PERIOD_S
+#define APP_HEARTBEAT_JITTER_S       SYSTEM_HEARTBEAT_JITTER_S
+#define APP_FRAME_TYPE_GW_BEACON     SYSTEM_FRAME_TYPE_GW_BEACON
+#define APP_GW_LOST_TIMEOUT_S        SYSTEM_GW_LOST_TIMEOUT_S
+#define APP_PAN_ID                   SYSTEM_PAN_ID
+#define APP_SERI_ED                  SYSTEM_SERI_ED
+#define APP_FIRM_ID                  SYSTEM_FIRM_ID
+#define APP_DEVICE_TYPE              SYSTEM_DEVICE_TYPE
+#define APP_USE_CRYPTO               SYSTEM_USE_CRYPTO
+#define APP_DEV_KEY                  SYSTEM_DEV_KEY
+#define APP_GROUP_KEY                SYSTEM_GROUP_KEY
+#define APP_MIC_LEN                  SYSTEM_MIC_LEN
+#define APP_ALARM_SEEN_BACKOFF_S_MAX SYSTEM_ALARM_SEEN_BACKOFF_S_MAX
+#define APP_ALARM_EVENT_RETX_MAX     SYSTEM_ALARM_EVENT_RETX_MAX
+#define APP_ALARM_EVENT_RETX_BASE_S  SYSTEM_ALARM_EVENT_RETX_BASE_S
+#define APP_FRAME_MAX_LEN            SYSTEM_FRAME_MAX_LEN
 
-/** @brief Device firmware version (3 bytes: major.minor.patch). */
-extern const unsigned char APP_FIRM_ID[3];
-/** @brief Device type (2=smoke sensor; 0=siren, 1=temp, 3=button). */
-#define APP_DEVICE_TYPE              (2U)
-
-/** @brief Enable cryptographic security for frame transmission (1=enabled). */
-#define APP_USE_CRYPTO               (1)
-
-/** @brief Device unique key for uplink frame encryption (16 bytes, provisioned). */
-extern const unsigned char APP_DEV_KEY[16];
-/** @brief Network shared key for downlink frame decryption (16 bytes, provisioned). */
-extern const unsigned char APP_GROUP_KEY[16];
-
-/** @brief Message Integrity Code length in bytes (8 bytes = 64-bit MIC). */
-#define APP_MIC_LEN                  (8U)
-
-/** @brief Alarm event backoff window in seconds (debounce repeating alarms). */
-#define APP_ALARM_SEEN_BACKOFF_S_MAX (5U)
-
-/**
- * @brief Maximum retransmissions for local alarm events.
- * @details Total TX attempts = 1 + APP_ALARM_EVENT_RETX_MAX.
- *          Retransmit interval = APP_ALARM_EVENT_RETX_BASE_S + jitter.
- */
-#define APP_ALARM_EVENT_RETX_MAX      (4U)
-/** @brief Base retransmit interval for alarm events in seconds. */
-#define APP_ALARM_EVENT_RETX_BASE_S   (5U)
-
-/** @brief Maximum LoRa payload frame size in bytes. */
-#define APP_FRAME_MAX_LEN            (64U)
-
-#endif
+#endif /* APP_CONFIG_H */

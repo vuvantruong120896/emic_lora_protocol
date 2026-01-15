@@ -1,0 +1,13 @@
+[CCRL] make: C:\Renesas\e2_studio\eclipse\plugins\com.renesas.ide.exttools.gnumake.win32.x86_64_4.3.0.v20220121-1024\mk\make.exe
+[CCRL] config: HardwareDebug
+[CCRL] target: all + 
+make: Entering directory 'D:/Projects/Emic/LoraSafe/Core/EMIC_LORA_PROTOCOL/HardwareDebug'
+Scanning and building file: ../src/user/services/nv_store_service.c
+Scanning and building file: ../src/user/app/app_main.c
+Invoking Linker: EMIC_LORA_PROTOCOL.abs
+
+E0562310:Undefined external symbol "_nv_store_service_init" referenced in ".\src\user\app\app_main.obj"
+
+Renesas Optimizing Linker Abort
+make: *** [makefile:146: EMIC_LORA_PROTOCOL.abs] Error 1
+make: Leaving directory 'D:/Projects/Emic/LoraSafe/Core/EMIC_LORA_PROTOCOL/HardwareDebug'

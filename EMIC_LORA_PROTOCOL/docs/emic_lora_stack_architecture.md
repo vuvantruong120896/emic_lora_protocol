@@ -123,12 +123,12 @@ int sx1262_receive(uint8_t *buffer, uint8_t max_len) {
 
 | Trách Nhiệm               | Chi Tiết                                                                                 |
 | --------------------------- | ----------------------------------------------------------------------------------------- |
-| **Frame Format**      | MAC frame header (src, dst, seq, flags, length)                                           |
+| **Frame Format**      | EMIC on-air frame: MAC header (ver_type, flags, msg_id, src, dst, len) + encrypted payload + MIC |
 | **Addressing**        | 16-bit short addresses (0x0000=GW, 0x0001..0xFFFD=ED, 0xFFFF=broadcast)                   |
 | **Channel Access**    | CSMA/CA (Carrier Sense Multiple Access / Collision Avoidance)                             |
 | **ACK Mechanism**     | Send/receive ACK frames (Type=8), bidirectional (GW↔ED)                                  |
 | **Retry Policy**      | Retransmit on timeout (max 3 retries), exponential backoff                                |
-| **Sequence Tracking** | MAC sequence number per source (khác với Protocol msg_id)                               |
+| **Sequence Tracking** | Retry correlation/tracking ở MAC; msg_id thuộc Protocol (anti-replay), không phải “MAC seq” trong header |
 | **Link Reliability**  | Đảm bảo frame tới được nhận (via ACK + retry) —**không phải end-to-end** |
 | **Fragmentation**     | Nếu payload > 64B → split thành multiple MAC frames (nếu cần)                        |
 | **Frame Filtering**   | Loại bỏ frame không phải cho mình (address mismatch)                                 |
@@ -244,10 +244,11 @@ Result: 14 bytes overhead chỉ để gửi 1 bit ACK thông tin
 ```c
 // CÁCH TỐT
 MAC layer (send ACK):
-  1. Create simple Type=8 ACK frame (10B header + empty payload)
-  2. Send directly to PHY
+  1. Create Type=8 ACK frame (10B header + 4-8B metadata payload)
+  2. Payload: acked_msg_id(3) + status(1) + optional rtc(4)
+  3. Send directly to PHY
   
-Result: 10 bytes, nhanh + hiệu quả
+Result: 14-18 bytes, hiệu quả hơn full encrypted response
 ```
 
 ### 3.7 Code Reference (EMIC)
@@ -295,7 +296,7 @@ void mac_send_ack(uint16_t dst, uint8_t msg_id) {
 | -------------------------------- | ------------------------------------------------------------------------------------------------ |
 | **End-to-End Encryption**  | AES-128-CCM encryption + authentication                                                          |
 | **Anti-Replay Protection** | msg_id (24-bit counter) với window=1 (strictly monotonic per source)                            |
-| **Message Types**          | 19 message types (JOIN_REQ, ALARM, HEARTBEAT, CFG_SET, TIME_SYNC, GROUP_SET, FAULT_REPORT, etc.) |
+| **Message Types**          | 15 message types (JOIN_REQ, ALARM, HEARTBEAT, CFG_SET, TIME_SYNC, GROUP_SET, FAULT_REPORT, etc.) |
 | **Payload Format**         | Định dạng payload cụ thể cho từng message type                                             |
 | **Session Management**     | Quản lý session state, key derivation, encryption context                                      |
 | **Nonce Construction**     | Xây dựng nonce: ctx6(6B) + src(2B) + msg_id(3B) + direction(1B) + key_id(1B)                   |
@@ -325,7 +326,7 @@ void mac_send_ack(uint16_t dst, uint8_t msg_id) {
         │ AES-128-CCM Encryption     │
         │ - Nonce (13 bytes)         │
         │ - Key (16 bytes)           │
-        │ - AAD (6 bytes from header)│
+        │ - AAD (10 bytes header)    │
         └────────────┬───────────────┘
                      │
         ┌────────────▼───────────────┐
@@ -378,28 +379,32 @@ receive_and_verify(frame) {
 ```
 Core Messages (3):
   • JOIN_REQ (0x01)  — Device yêu cầu gia nhập mạng
-  • JOIN_RSP (0x02)  — Gateway xác nhận join
+  • JOIN_ACCEPT (0x02)  — Gateway xác nhận join
   • ACK (0x08)       — Acknowledgment (bidirectional)
 
 Alarm/Sensor (3):
   • ALARM (0x03)     — Cảnh báo sự kiện
   • ALARM_CLEAR (0x04) — Xóa cảnh báo
-  • HEARTBEAT (0x05) — Nhịp tim định kỳ
+  • HEARTBEAT (0x09) — Nhịp tim định kỳ
 
-Configuration (4):
-  • CFG_SET (0x06)   — Thiết lập cấu hình
-  • CFG_RSP (0x07)   — Phản hồi config
-  • TIME_SYNC (0x0A) — Đồng bộ thời gian
-  • GROUP_SET (0x0B) — Thiết lập nhóm
+Control (2):
+  • SIREN_SILENCE (0x05) — Tắt còi báo
+  • SET_OPERATIONAL (0x06) — ED enters operational mode
 
-Maintenance (4):
-  • FAULT_REPORT (0x0C)  — Báo cáo lỗi
-  • FAULT_CLEAR (0x0D)   — Xóa lỗi
-  • SIREN_SILENCE (0x0E) — Tắt còi báo
-  • LEAVE_NETWORK (0x0F) — Rời khỏi mạng
+Maintenance (3):
+  • LEAVE_NETWORK (0x0B) — Rời khỏi mạng
+  • GW_SHUTDOWN (0x0C) — GW shutting down
+  • PING (0x0D) — Connectivity check
 
-Reserved (6):
-  • 0x10–0x15 (dành cho tương lai)
+Fault Management (2):
+  • FAULT_REPORT (0x0E)  — Báo cáo lỗi
+  • FAULT_CLEAR (0x0F)   — Xóa lỗi
+
+Configuration (3):
+  • CFG_SET (0x10)   — Thiết lập cấu hình
+  • CFG_RSP (0x11)   — Phản hồi config
+  • TIME_SYNC (0x12) — Đồng bộ thời gian
+  • GROUP_SET (0x13) — Thiết lập nhóm
 ```
 
 ### 4.5 Nonce Construction (Critical for Security)
@@ -412,7 +417,7 @@ uint8_t nonce[13];
 nonce[0..5]   = ctx6;           // Context (seri_ed at join, net_id after)
 nonce[6..7]   = src_address;    // Source address (2 bytes)
 nonce[8..10]  = msg_id & 0xFFFFFF;  // Lower 24 bits of msg_id
-nonce[11]     = direction;      // 0x00=GW→ED, 0x01=ED→GW
+nonce[11]     = direction;      // 0x00=ED→GW, 0x01=GW→ED
 nonce[12]     = key_id;         // Key identifier
 
 // Tại sao riêng nonce?

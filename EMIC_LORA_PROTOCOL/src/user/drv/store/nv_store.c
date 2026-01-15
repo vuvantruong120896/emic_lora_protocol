@@ -18,6 +18,7 @@
 #define NV_STORE_DF_VERSION_V4      (4U)
 #define NV_STORE_DF_VERSION_V5      (5U)
 #define NV_STORE_DF_VERSION_V6      (6U)
+#define NV_STORE_DF_VERSION_V7      (7U)
 
 #define NV_STORE_DF_BLOCK_A         (0U)
 #define NV_STORE_DF_BLOCK_B         (1U)
@@ -130,6 +131,38 @@ typedef struct
     uint16_t crc16;
 } nv_store_df_record_v6_t;
 
+/**
+ * @brief NV Store Data Flash record V7 (adds V2.0 protocol keys and msg_id).
+ * @details Structure layout:
+ * - V6 fields (fcnt, alarm_id, channel, pan_id, seri_ed, fire_start, config)
+ * - V2.0 protocol: key_k0[16], key_k1[16], msg_id (24-bit counter), short_addr (16-bit)
+ */
+typedef struct
+{
+    uint32_t magic;
+    uint16_t version;
+    uint16_t length;
+    uint32_t seq;
+    uint32_t fcnt_up;
+    uint32_t fcnt_down;
+    uint16_t last_alarm_id;
+    uint8_t lora_channel_idx;
+    uint8_t pan_id[6];
+    uint8_t seri_ed[6];
+    uint32_t fire_start_epoch_s;
+    int16_t lora_rssi_threshold_dbm;
+    uint16_t heartbeat_period_s;
+    uint16_t smoke_sensitivity;
+    uint16_t heat_sensitivity;
+    /* V2.0 Protocol fields */
+    uint8_t key_k0[16];          /* Bootstrap key (provisioned) */
+    uint8_t key_k1[16];          /* Operational key (derived after join) */
+    uint32_t msg_id;             /* Message ID counter (24-bit, upper 8 bits ignored) */
+    uint16_t short_addr;         /* Assigned short address (0xFFFF=unjoined) */
+    uint8_t reserved[1];
+    uint16_t crc16;
+} nv_store_df_record_v7_t;
+
 static uint32_t s_fcnt_up;
 static uint32_t s_fcnt_down;
 static uint16_t s_last_alarm_id;
@@ -141,6 +174,12 @@ static int16_t s_lora_rssi_threshold_dbm;
 static uint16_t s_heartbeat_period_s;
 static uint16_t s_smoke_sensitivity;
 static uint16_t s_heat_sensitivity;
+
+/* V2.0 Protocol state (V7 record) */
+static uint8_t s_key_k0[16];
+static uint8_t s_key_k1[16];
+static uint32_t s_msg_id;
+static uint16_t s_short_addr;
 
 static uint8_t s_df_ready;
 static uint8_t s_df_active_block;
@@ -271,6 +310,26 @@ static uint8_t nv_store_df_record_v6_is_valid(const nv_store_df_record_v6_t *rec
     return (nv_store_df_crc16(rec, (uint16_t)(sizeof(nv_store_df_record_v6_t) - sizeof(rec->crc16))) == rec->crc16) ? 1U : 0U;
 }
 
+static uint8_t nv_store_df_record_v7_is_valid(const nv_store_df_record_v7_t *rec)
+{
+    if (rec->magic != NV_STORE_DF_MAGIC)
+    {
+        return 0U;
+    }
+
+    if (rec->version != NV_STORE_DF_VERSION_V7)
+    {
+        return 0U;
+    }
+
+    if (rec->length != (uint16_t)sizeof(nv_store_df_record_v7_t))
+    {
+        return 0U;
+    }
+
+    return (nv_store_df_crc16(rec, (uint16_t)(sizeof(nv_store_df_record_v7_t) - sizeof(rec->crc16))) == rec->crc16) ? 1U : 0U;
+}
+
 static void nv_store_df_read_block_raw(uint8_t block_number, uint8_t *out, uint16_t len)
 {
     uint32_t addr = hal_dataflash_block_start_addr(block_number);
@@ -392,6 +451,29 @@ static uint8_t nv_store_df_pick_active_block_v6(const nv_store_df_record_v6_t *a
     return (b->seq >= a->seq) ? NV_STORE_DF_BLOCK_B : NV_STORE_DF_BLOCK_A;
 }
 
+static uint8_t nv_store_df_pick_active_block_v7(const nv_store_df_record_v7_t *a, const nv_store_df_record_v7_t *b)
+{
+    uint8_t a_ok = nv_store_df_record_v7_is_valid(a);
+    uint8_t b_ok = nv_store_df_record_v7_is_valid(b);
+
+    if ((a_ok == 0U) && (b_ok == 0U))
+    {
+        return 0xFFU;
+    }
+
+    if (a_ok != 0U && b_ok == 0U)
+    {
+        return NV_STORE_DF_BLOCK_A;
+    }
+
+    if (b_ok != 0U && a_ok == 0U)
+    {
+        return NV_STORE_DF_BLOCK_B;
+    }
+
+    return (b->seq >= a->seq) ? NV_STORE_DF_BLOCK_B : NV_STORE_DF_BLOCK_A;
+}
+
 static uint8_t nv_store_df_pick_active_block_v1(const nv_store_df_record_v1_t *a, const nv_store_df_record_v1_t *b)
 {
     uint8_t a_ok = nv_store_df_record_v1_is_valid(a);
@@ -452,12 +534,12 @@ static void nv_store_df_commit(uint8_t force)
     }
 
     {
-        nv_store_df_record_v6_t rec;
+        nv_store_df_record_v7_t rec;
         uint8_t target = (s_df_active_block == NV_STORE_DF_BLOCK_A) ? NV_STORE_DF_BLOCK_B : NV_STORE_DF_BLOCK_A;
 
         rec.magic = NV_STORE_DF_MAGIC;
-        rec.version = NV_STORE_DF_VERSION_V6;
-        rec.length = (uint16_t)sizeof(nv_store_df_record_v6_t);
+        rec.version = NV_STORE_DF_VERSION_V7;
+        rec.length = (uint16_t)sizeof(nv_store_df_record_v7_t);
         rec.seq = s_df_seq + 1UL;
         rec.fcnt_up = s_fcnt_up;
         rec.fcnt_down = s_fcnt_down;
@@ -470,12 +552,15 @@ static void nv_store_df_commit(uint8_t force)
         rec.heartbeat_period_s = s_heartbeat_period_s;
         rec.smoke_sensitivity = s_smoke_sensitivity;
         rec.heat_sensitivity = s_heat_sensitivity;
+        /* V2.0 protocol fields */
+        memcpy(rec.key_k0, s_key_k0, 16);
+        memcpy(rec.key_k1, s_key_k1, 16);
+        rec.msg_id = s_msg_id & 0x00FFFFFFUL;
+        rec.short_addr = s_short_addr;
         rec.reserved[0] = 0U;
-        rec.reserved[1] = 0U;
-        rec.reserved[2] = 0U;
-        rec.crc16 = nv_store_df_crc16(&rec, (uint16_t)(sizeof(nv_store_df_record_v6_t) - sizeof(rec.crc16)));
+        rec.crc16 = nv_store_df_crc16(&rec, (uint16_t)(sizeof(nv_store_df_record_v7_t) - sizeof(rec.crc16)));
 
-        if (nv_store_df_write_record(target, (const uint8_t *)&rec, (uint16_t)sizeof(nv_store_df_record_v6_t)) != 0U)
+        if (nv_store_df_write_record(target, (const uint8_t *)&rec, (uint16_t)sizeof(nv_store_df_record_v7_t)) != 0U)
         {
             s_df_active_block = target;
             s_df_seq = rec.seq;
@@ -485,6 +570,8 @@ static void nv_store_df_commit(uint8_t force)
 
 void nv_store_init(void)
 {
+    nv_store_df_record_v7_t rec_a7;
+    nv_store_df_record_v7_t rec_b7;
     nv_store_df_record_v6_t rec_a6;
     nv_store_df_record_v6_t rec_b6;
     nv_store_df_record_v5_t rec_a5;
@@ -511,7 +598,56 @@ void nv_store_init(void)
     {
         uint8_t active;
 
-        /* Try V6 first. */
+        /* Try V7 first (V2.0 protocol with keys). */
+        nv_store_df_read_block_raw(NV_STORE_DF_BLOCK_A, (uint8_t *)&rec_a7, (uint16_t)sizeof(rec_a7));
+        nv_store_df_read_block_raw(NV_STORE_DF_BLOCK_B, (uint8_t *)&rec_b7, (uint16_t)sizeof(rec_b7));
+        active = nv_store_df_pick_active_block_v7(&rec_a7, &rec_b7);
+        if (active == NV_STORE_DF_BLOCK_A)
+        {
+            s_df_active_block = NV_STORE_DF_BLOCK_A;
+            s_df_seq = rec_a7.seq;
+            s_fcnt_up = rec_a7.fcnt_up;
+            s_fcnt_down = rec_a7.fcnt_down;
+            s_last_alarm_id = rec_a7.last_alarm_id;
+            s_lora_channel_idx = rec_a7.lora_channel_idx;
+            memcpy(s_pan_id, rec_a7.pan_id, sizeof(s_pan_id));
+            memcpy(s_seri_ed, rec_a7.seri_ed, sizeof(s_seri_ed));
+            s_fire_start_epoch_s = rec_a7.fire_start_epoch_s;
+            s_lora_rssi_threshold_dbm = rec_a7.lora_rssi_threshold_dbm;
+            s_heartbeat_period_s = rec_a7.heartbeat_period_s;
+            s_smoke_sensitivity = rec_a7.smoke_sensitivity;
+            s_heat_sensitivity = rec_a7.heat_sensitivity;
+            /* V2.0 protocol fields */
+            memcpy(s_key_k0, rec_a7.key_k0, 16);
+            memcpy(s_key_k1, rec_a7.key_k1, 16);
+            s_msg_id = rec_a7.msg_id & 0x00FFFFFFUL;  /* Mask to 24-bit */
+            s_short_addr = rec_a7.short_addr;
+            return;
+        }
+        else if (active == NV_STORE_DF_BLOCK_B)
+        {
+            s_df_active_block = NV_STORE_DF_BLOCK_B;
+            s_df_seq = rec_b7.seq;
+            s_fcnt_up = rec_b7.fcnt_up;
+            s_fcnt_down = rec_b7.fcnt_down;
+            s_last_alarm_id = rec_b7.last_alarm_id;
+            s_lora_channel_idx = rec_b7.lora_channel_idx;
+            memcpy(s_pan_id, rec_b7.pan_id, sizeof(s_pan_id));
+            memcpy(s_seri_ed, rec_b7.seri_ed, sizeof(s_seri_ed));
+            s_fire_start_epoch_s = rec_b7.fire_start_epoch_s;
+            s_lora_rssi_threshold_dbm = rec_b7.lora_rssi_threshold_dbm;
+            s_heartbeat_period_s = rec_b7.heartbeat_period_s;
+            s_smoke_sensitivity = rec_b7.smoke_sensitivity;
+            s_heat_sensitivity = rec_b7.heat_sensitivity;
+            /* V2.0 protocol fields */
+            memcpy(s_key_k0, rec_b7.key_k0, 16);
+            memcpy(s_key_k1, rec_b7.key_k1, 16);
+            s_msg_id = rec_b7.msg_id & 0x00FFFFFFUL;  /* Mask to 24-bit */
+            s_short_addr = rec_b7.short_addr;
+            return;
+        }
+
+        /* Try V6 next. */
         nv_store_df_read_block_raw(NV_STORE_DF_BLOCK_A, (uint8_t *)&rec_a6, (uint16_t)sizeof(rec_a6));
         nv_store_df_read_block_raw(NV_STORE_DF_BLOCK_B, (uint8_t *)&rec_b6, (uint16_t)sizeof(rec_b6));
         active = nv_store_df_pick_active_block_v6(&rec_a6, &rec_b6);
@@ -945,3 +1081,78 @@ void nv_store_set_heat_sensitivity(uint16_t v)
     /* Infrequent value: commit immediately. */
     nv_store_df_commit(1U);
 }
+
+/* ===== V2.0 Protocol Key and State Functions ===== */
+
+uint8_t nv_store_read_key_k0(uint8_t out_key[16])
+{
+    /* Check if key is provisioned (non-zero). */
+    uint8_t is_zero = 1U;
+    uint8_t i;
+    for (i = 0; i < 16U; i++)
+    {
+        if (s_key_k0[i] != 0U)
+        {
+            is_zero = 0U;
+            break;
+        }
+    }
+    
+    memcpy(out_key, s_key_k0, 16);
+    return (is_zero == 0U) ? 1U : 0U;  /* Return 1 if provisioned, 0 if all zeros */
+}
+
+void nv_store_write_key_k0(const uint8_t key[16])
+{
+    memcpy(s_key_k0, key, 16);
+    nv_store_df_commit(1U);  /* Keys are infrequent: commit immediately */
+}
+
+uint8_t nv_store_read_key_k1(uint8_t out_key[16])
+{
+    /* Check if key is provisioned (non-zero). */
+    uint8_t is_zero = 1U;
+    uint8_t i;
+    for (i = 0; i < 16U; i++)
+    {
+        if (s_key_k1[i] != 0U)
+        {
+            is_zero = 0U;
+            break;
+        }
+    }
+    
+    memcpy(out_key, s_key_k1, 16);
+    return (is_zero == 0U) ? 1U : 0U;  /* Return 1 if provisioned, 0 if all zeros */
+}
+
+void nv_store_write_key_k1(const uint8_t key[16])
+{
+    memcpy(s_key_k1, key, 16);
+    nv_store_df_commit(1U);  /* Keys are infrequent: commit immediately */
+}
+
+uint32_t nv_store_get_msg_id(void)
+{
+    return s_msg_id & 0x00FFFFFFUL;  /* Return 24-bit value */
+}
+
+void nv_store_set_msg_id(uint32_t msg_id)
+{
+    s_msg_id = msg_id & 0x00FFFFFFUL;  /* Mask to 24-bit */
+    
+    /* msg_id changes frequently: use throttled commit (every 32 increments). */
+    nv_store_df_commit(0U);
+}
+
+uint16_t nv_store_get_short_addr(void)
+{
+    return s_short_addr;
+}
+
+void nv_store_set_short_addr(uint16_t addr)
+{
+    s_short_addr = addr;
+    nv_store_df_commit(1U);  /* Address assignment is infrequent: commit immediately */
+}
+

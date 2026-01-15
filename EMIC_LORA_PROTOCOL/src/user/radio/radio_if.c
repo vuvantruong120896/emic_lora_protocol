@@ -15,7 +15,7 @@
 
 #include "../utils/log_control.h"
 
-#include "../app/app_config.h"
+#include "../config/system_config.h"
 
 /** @brief Current radio event (updated by ISR and main-loop IRQ processing). */
 static volatile radio_event_t s_ev;
@@ -125,12 +125,12 @@ static void radio_process_irq_if_needed(void)
 void radio_init(void)
 {
     sx1262_config_t cfg;
-    cfg.rf_freq_hz = APP_RF_FREQ_HZ;
-    cfg.tx_power_dbm = (int8_t)APP_RF_TX_POWER_DBM;
-    cfg.sf = (uint8_t)APP_LORA_SF;
-    cfg.bw_hz = APP_LORA_BW;
-    cfg.cr = (uint8_t)APP_LORA_CR;
-    cfg.preamble_symbols = (uint16_t)APP_DL_PREAMBLE_SYMBOLS;
+    cfg.rf_freq_hz = SYSTEM_RF_FREQ_HZ;
+    cfg.tx_power_dbm = (int8_t)SYSTEM_RF_TX_POWER_DBM;
+    cfg.sf = (uint8_t)SYSTEM_LORA_SF;
+    cfg.bw_hz = SYSTEM_LORA_BW;
+    cfg.cr = (uint8_t)SYSTEM_LORA_CR;
+    cfg.preamble_symbols = (uint16_t)SYSTEM_DL_PREAMBLE_SYMBOLS;
 
     s_ev = RADIO_EVENT_NONE;
     s_irq_pending = 0U;

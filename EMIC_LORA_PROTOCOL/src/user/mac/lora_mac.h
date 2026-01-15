@@ -31,7 +31,12 @@ typedef enum
     LORA_MAC_EVENT_JOIN_ACCEPTED = 6,
     LORA_MAC_EVENT_ENTER_OPERATION = 7,
     LORA_MAC_EVENT_EXIT_GW = 8,
-    LORA_MAC_EVENT_TEST_ED = 9
+    LORA_MAC_EVENT_TEST_ED = 9,
+
+    /* Extended protocol events (V2.0) */
+    LORA_MAC_EVENT_GW_SHUTDOWN = 10,      /* GW shutting down warning */
+    LORA_MAC_EVENT_CFG_SET = 11,          /* Configuration set request from GW */
+    LORA_MAC_EVENT_GROUP_SET = 12         /* Group membership assignment */
 } lora_mac_event_t;
 
 /**
@@ -84,6 +89,24 @@ void lora_mac_notify_local_alarm(void);
  * @note Triggers uplink transmission of ALARM_STOP frame.
  */
 void lora_mac_notify_local_alarm_cleared(void);
+
+/**
+ * @brief Report a fault condition to gateway (sensor error, low battery, tamper, etc.).
+ *
+ * @param fault_code Fault code identifier (implementation-defined)
+ *
+ * @note Triggers uplink transmission of FAULT_REPORT frame with ACK request.
+ */
+void lora_mac_report_fault(uint16_t fault_code);
+
+/**
+ * @brief Notify MAC that a fault condition has been cleared.
+ *
+ * @param fault_code Fault code identifier that was cleared
+ *
+ * @note Triggers uplink transmission of FAULT_CLEAR frame with ACK request.
+ */
+void lora_mac_clear_fault(uint16_t fault_code);
 
 /**
  * @brief Request MAC to send a heartbeat uplink frame.
@@ -144,9 +167,33 @@ uint8_t lora_mac_is_joined(void);
 /**
  * @brief Check if RTC time has been synchronized with gateway.
  *
- * @return 1 if RTC time is synchronized (from GW time_rtc extend in JoinAccept/ACK), 0 otherwise
+ * @return 1 if RTC time is synchronized (from GW TIME_SYNC message), 0 otherwise
  */
 uint8_t lora_mac_is_rtc_synced(void);
+
+/**
+ * @brief Get CFG_SET payload from last received configuration message.
+ *
+ * @param out_buf Output buffer for payload (must be at least 50 bytes)
+ * @param max_len Maximum length of output buffer
+ *
+ * @return Actual payload length (0 if no CFG_SET received)
+ *
+ * @note Call this after receiving LORA_MAC_EVENT_CFG_SET event.
+ */
+uint8_t lora_mac_get_cfg_set_payload(uint8_t *out_buf, uint8_t max_len);
+
+/**
+ * @brief Get GROUP_SET payload from last received group assignment message.
+ *
+ * @param out_buf Output buffer for payload (must be at least 50 bytes)
+ * @param max_len Maximum length of output buffer
+ *
+ * @return Actual payload length (0 if no GROUP_SET received)
+ *
+ * @note Call this after receiving LORA_MAC_EVENT_GROUP_SET event.
+ */
+uint8_t lora_mac_get_group_set_payload(uint8_t *out_buf, uint8_t max_len);
 
 /**
  * @brief Check if radio is currently busy (CAD/RX/TX in progress).

@@ -23,13 +23,12 @@
 #include "../hal/hal_timer.h"
 #include "../hal/hal_uart.h"
 
-#include "../drv/store/nv_store.h"
-#include "../drv/button/button.h"
 #include "../drv/battery/battery.h"
 
-#include "../mac/lora_mac.h"
 #include "../services/alarm_service.h"
-#include "../services/heartbeat_service.h"
+#include "../services/button_service.h"
+#include "../services/lora_service.h"
+#include "../services/nv_store_service.h"
 #include "../services/power_service.h"
 #include "../services/smoke_service.h"
 
@@ -55,7 +54,7 @@ static void app_on_rtc_tick_poll(void)
     if (hal_rtc_int_is_pending())
     {
         hal_rtc_int_clear_flag();
-        lora_mac_on_rtc_halfsec_tick();
+        lora_service_on_rtc_tick();
         alarm_service_on_tick_halfsec();
 
         /* Status indicators update cadence.
@@ -89,7 +88,7 @@ static void app_on_rtc_tick_poll(void)
         }
 
         {
-            uint32_t age_s = lora_mac_get_gw_last_seen_age_s();
+            uint32_t age_s = lora_service_get_gw_age_s();
             uint8_t offline = (uint8_t)((age_s != 0xFFFFFFFFUL) && (age_s > (uint32_t)APP_OFFLINE_TIMEOUT_S)) ? 1U : 0U;
             alarm_service_set_offline(offline);
         }
@@ -124,8 +123,8 @@ static void app_collect_and_post_events(void)
      * - Release button => clear local alarm
      */
     {
-        uint8_t joined = lora_mac_is_joined();
-        uint8_t pressed = button_is_pressed(BUTTON_ID_SMOKE_TEST);
+        uint8_t joined = lora_service_is_joined();
+        uint8_t pressed = button_service_is_pressed();
         uint32_t now_ms = hal_systick_get_ms();
 
         if ((pressed != 0U) && (s_prev_pressed == 0U))
@@ -158,7 +157,7 @@ static void app_collect_and_post_events(void)
     /* Button gesture events */
     for (;;)
     {
-        button_event_t bev = button_poll_event();
+        button_event_t bev = button_service_poll_event();
         if (bev == BUTTON_EVENT_NONE)
         {
             break;
@@ -177,7 +176,7 @@ static void app_collect_and_post_events(void)
                 {
                     (void)device_fsm_post_event(DEVICE_EVENT_BTN_JOIN_MODE_EXIT);
                 }
-                else if (lora_mac_is_joined() == 0U)
+                else if (lora_service_is_joined() == 0U)
                 {
                     (void)device_fsm_post_event(DEVICE_EVENT_BTN_TEST);
                 }
@@ -203,7 +202,7 @@ static void app_collect_and_post_events(void)
                 /* Pre-join: allow long-hold to trigger same TEST pattern.
                  * Joined: ignore (handled via press/hold polling above).
                  */
-                if ((device_fsm_is_join_mode_active() == 0U) && (lora_mac_is_joined() == 0U))
+                if ((device_fsm_is_join_mode_active() == 0U) && (lora_service_is_joined() == 0U))
                 {
                     (void)device_fsm_post_event(DEVICE_EVENT_BTN_TEST);
                 }
@@ -225,45 +224,45 @@ static void app_collect_and_post_events(void)
         }
     }
 
-    /* MAC events */
+    /* LoRa service events */
     for (;;)
     {
-        lora_mac_event_t ev = lora_mac_poll_event();
-        if (ev == LORA_MAC_EVENT_NONE)
+        lora_event_t ev = lora_service_poll_event();
+        if (ev == LORA_EVENT_NONE)
         {
             break;
         }
 
         switch (ev)
         {
-            case LORA_MAC_EVENT_HEARTBEAT_DUE:
+            case LORA_EVENT_HEARTBEAT_DUE:
                 (void)device_fsm_post_event(DEVICE_EVENT_LINK_HEARTBEAT_DUE);
                 break;
-            case LORA_MAC_EVENT_REMOTE_ALARM:
+            case LORA_EVENT_REMOTE_ALARM:
                 (void)device_fsm_post_event(DEVICE_EVENT_LINK_REMOTE_ALARM_ON);
                 break;
-            case LORA_MAC_EVENT_REMOTE_ALARM_STOP:
+            case LORA_EVENT_REMOTE_ALARM_STOP:
                 (void)device_fsm_post_event(DEVICE_EVENT_LINK_REMOTE_ALARM_OFF);
                 break;
-            case LORA_MAC_EVENT_REMOTE_SILENCE:
+            case LORA_EVENT_REMOTE_SILENCE:
                 (void)device_fsm_post_event(DEVICE_EVENT_LINK_REMOTE_SILENCE);
                 break;
-            case LORA_MAC_EVENT_GW_LOST:
+            case LORA_EVENT_GW_LOST:
                 (void)device_fsm_post_event(DEVICE_EVENT_LINK_GW_LOST);
                 break;
-            case LORA_MAC_EVENT_JOIN_ACCEPTED:
+            case LORA_EVENT_JOIN_ACCEPTED:
                 (void)device_fsm_post_event(DEVICE_EVENT_LINK_JOIN_ACCEPTED);
                 break;
-            case LORA_MAC_EVENT_ENTER_OPERATION:
+            case LORA_EVENT_ENTER_OPERATION:
                 (void)device_fsm_post_event(DEVICE_EVENT_LINK_ENTER_OPERATION);
                 break;
-            case LORA_MAC_EVENT_EXIT_GW:
+            case LORA_EVENT_EXIT_GW:
                 (void)device_fsm_post_event(DEVICE_EVENT_LINK_EXIT_GW);
                 break;
-            case LORA_MAC_EVENT_TEST_ED:
+            case LORA_EVENT_TEST_ED:
                 (void)device_fsm_post_event(DEVICE_EVENT_LINK_TEST_ED);
                 break;
-            case LORA_MAC_EVENT_NONE:
+            case LORA_EVENT_NONE:
             default:
                 break;
         }
@@ -302,17 +301,12 @@ void app_init(void)
 
     log_set_level(LOG_LEVEL_DEBUG);
 
-    alarm_service_init();
-    button_init();
-    smoke_service_init();
-    battery_init();
-
-    heartbeat_service_init();
     power_service_init();
-
-    nv_store_init();
-
-    lora_mac_init();
+    alarm_service_init();
+    button_service_init();
+    smoke_service_init();
+    lora_service_init();
+    nv_store_service_init();
 
     device_fsm_init();
 }
@@ -325,8 +319,8 @@ void app_run_forever(void)
         app_on_rtc_tick_poll();
 
         /* Run state machines (button/link/alarm FSMs update internal state) */
-        button_run();
-        lora_mac_run();
+        button_service_run();
+        lora_service_run();
         alarm_service_run();
 
         /* Collect all events from services and post to device FSM queue */

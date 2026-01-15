@@ -1,36 +1,36 @@
 # Đặc Tả Protocol EMIC LoRa (V2)
 
-**Phiên bản:** 2.0  
-**Ngôn ngữ tài liệu:** Tiếng Việt (Vietnamese) + English technical terms  
+**Phiên bản:** 2.0
+**Ngôn ngữ tài liệu:** Tiếng Việt (Vietnamese) + English technical terms
 **Cập nhật:** 13 Tháng 1, 2026
 
 ---
 
 ## Cross-Reference Quick Guide
 
-| Topic | Trong Tài Liệu Này | Trong emic_lora_stack_architecture.md |
-|-------|------------------|--------------------------------------|
-| **Protocol layer definition** | Phần 1-3 (overview) | Phần 4 (responsibilities) |
-| **MAC layer ACK mechanism** | Phần 10 (when/how to send ACK) | Phần 3.3-3.4 (ACK retry logic + seq) |
-| **msg_id vs MAC sequence** | Phần 5.3 (msg_id definition) | Phần 3.4 (detailed comparison table) |
-| **Nonce construction** | Phần 8.3 (layout + sources) | Phần 4.2 (nonce purpose) |
-| **AES-128-CCM encryption** | Phần 8 (full spec) | Phần 4.2 (layer responsibility) |
-| **Anti-replay window=1** | Phần 8.7 (rule + trade-offs) | Phần 4.3 (why window=1 for EMIC) |
-| **Message types overview** | Phần 9.1 (list) | Phần 4.4 (category breakdown) |
-| **Broadcast vs Unicast** | Phần 10 (ACK rules per type) | Phần 3.3 (broadcast no-ACK rule) |
-| **Frame format** | Phần 4 (header structure) | Phần 1 (architecture diagram) |
+| Topic                               | Trong Tài Liệu Này           | Trong emic_lora_stack_architecture.md |
+| ----------------------------------- | ------------------------------- | ------------------------------------- |
+| **Protocol layer definition** | Phần 1-3 (overview)            | Phần 4 (responsibilities)            |
+| **MAC layer ACK mechanism**   | Phần 10 (when/how to send ACK) | Phần 3.3-3.4 (ACK retry logic + seq) |
+| **msg_id vs MAC sequence**    | Phần 5.3 (msg_id definition)   | Phần 3.4 (detailed comparison table) |
+| **Nonce construction**        | Phần 8.3 (layout + sources)    | Phần 4.2 (nonce purpose)             |
+| **AES-128-CCM encryption**    | Phần 8 (full spec)             | Phần 4.2 (layer responsibility)      |
+| **Anti-replay window=1**      | Phần 8.7 (rule + trade-offs)   | Phần 4.3 (why window=1 for EMIC)     |
+| **Message types overview**    | Phần 9.1 (list)                | Phần 4.4 (category breakdown)        |
+| **Broadcast vs Unicast**      | Phần 10 (ACK rules per type)   | Phần 3.3 (broadcast no-ACK rule)     |
+| **Frame format**              | Phần 4 (header structure)      | Phần 1 (architecture diagram)        |
 
 ---
 
 ## Hướng Dẫn Sử Dụng Tài Liệu
 
-| Bạn Là                          | Hãy Bắt Đầu Ở                    | Lý Do                                               |
-| --------------------------------- | ------------------------------- | ------------------------------------------------- |
-| **Kiến trúc sư**             | [Architecture.md](./emic_lora_stack_architecture.md#4-protocol-layer) (Phần 4) | Hiểu trách nhiệm layer, quy trình xác minh |
-| **Firmware engineer**         | Phần 4-5 (Frame format + Fields) | Triển khai serialization/parsing                 |
-| **Security reviewer**         | Phần 8 (AES-128-CCM Security)   | Kiểm tra encryption, anti-replay, AAD           |
-| **Integration tester**        | Phần 9 (Message Types) + Phụ lục | Test từng TYPE payload                           |
-| **Full review**               | Bắt đầu từ Phần 1 → hết          | Toàn cảnh từ design → implementation              |
+| Bạn Là                     | Hãy Bắt Đầu Ở                                                           | Lý Do                                          |
+| ---------------------------- | ---------------------------------------------------------------------------- | ----------------------------------------------- |
+| **Firmware engineer**  | [Architecture.md](./emic_lora_stack_architecture.md#4-protocol-layer) (Phần 4) | Hiểu trách nhiệm layer, quy trình xác minh |
+| **Firmware engineer**  | Phần 4-5 (Frame format + Fields)                                            | Triển khai serialization/parsing               |
+| **Security reviewer**  | Phần 8 (AES-128-CCM Security)                                               | Kiểm tra encryption, anti-replay, AAD          |
+| **Integration tester** | Phần 9 (Message Types) + Phụ lục                                          | Test từng TYPE payload                         |
+| **Full review**        | Bắt đầu từ Phần 1 → hết                                               | Toàn cảnh từ design → implementation        |
 
 ---
 
@@ -42,9 +42,9 @@ Tài liệu này định nghĩa **Protocol Layer** cho EMIC (V2) — lớp giao 
 * **Mạng nhỏ** (< 256 devices, 16-bit addressing)
 * **Độ tin cậy cao** cho các thông báo quan trọng (ALARM, HEARTBEAT)
 * **Encryption xác thực nhẹ:** AES-128-CCM
-* **Hành vi xác định:** tiêu đề nhỏ (10B), frame format cố định
+* **Hành vi xác định:** header nhỏ (10B), fixed on-air frame format
 
-**Cốt lõi:** Protocol dùng **AES-128-CCM** để mã hóa + xác thực, **msg_id** (24-bit counter) để chống replay attack (window=1, không dung thứ).
+**Cốt lõi:** Protocol dùng **AES-128-CCM** để mã hóa + xác thực, **msg_id** (24-bit counter) để chống replay attack (window=1).
 
 ---
 
@@ -55,19 +55,20 @@ Tài liệu này định nghĩa **Protocol Layer** cho EMIC (V2) — lớp giao 
 * **Broadcast không ACK:** Nếu `BCAST=1` → `ACK_REQ=0` (bắt buộc)
 * **Unicast với ACK tuỳ chọn:** Protocol flags quyết định có yêu cầu ACK hay không
 * **Toàn vẹn + Bảo mật:** MIC bảo vệ header + payload; header không encrypt (dùng làm AAD)
-* **Anti-replay không dung thứ:** Chỉ chấp nhận `msg_id > last_msg_id` (window=1)
+* **Anti-replay :** Chỉ chấp nhận `msg_id > last_msg_id` (window=1)
 * **Nonce xác định:** Dẫn xuất từ context (`net_id` hoặc `seri_ed`) + `src` + `msg_id` + `dir` + `key_id`
 
 **Tập Hợp Message Tối Thiểu (Production Fire-Safety Network)**
 
-Mạng báo cháy sản xuất nên bao gồm các message type:
+Mạng báo cháy bao gồm **15 message types** đang được định nghĩa:
 
 * **Join & Session:** JOIN_REQ, JOIN_ACCEPT
 * **Alarm:** ALARM, ALARM_CLEAR
-* **Maintenance:** FAULT_REPORT, FAULT_CLEAR
+* **Control:** SIREN_SILENCE, SET_OPERATIONAL
 * **Health monitoring:** HEARTBEAT (định kỳ)
-* **Control:** SIREN_SILENCE, GROUP_SET, TIME_SYNC
-* **Configuration:** CFG_SET, CFG_RSP
+* **Maintenance:** LEAVE_NETWORK, GW_SHUTDOWN, PING
+* **Fault Management:** FAULT_REPORT, FAULT_CLEAR
+* **Configuration:** CFG_SET, CFG_RSP, TIME_SYNC, GROUP_SET
 
 ---
 
@@ -80,17 +81,16 @@ Mạng báo cháy sản xuất nên bao gồm các message type:
                  │ Message (plaintext)
                  ▼
 ┌─────────────────────────────────────┐
-│ PROTOCOL LAYER (Tài liệu này)       │ ← Định dạng frame, TYPE handler, mã hóa
-│ - Frame format + Encryption         │
-│ - AES-128-CCM xác thực              │
+│ PROTOCOL LAYER (Tài liệu này)       │ ← TYPE handler, crypto rules, anti-replay
+│ - Message types + payload semantics │
+│ - AES-128-CCM rules (nonce/AAD/MIC) │
 │ - Anti-replay (msg_id window=1)     │
-│ - Nonce construction                │
 └────────────────┬────────────────────┘
-                 │ Frame (mã hóa)
+                 │ Protocol PDU (plaintext) → (encrypted)
                  ▼
 ┌─────────────────────────────────────┐
-│ MAC LAYER                           │ ← ACK, retry logic, timeout
-│ [See architecture.md Phần 3]         │
+│ MAC LAYER                           │ ← On-air frame transport + ACK/retry/timeout
+│ [See architecture.md Phần 3]        │
 └────────────────┬────────────────────┘
                  │
                  ▼
@@ -99,38 +99,51 @@ Mạng báo cháy sản xuất nên bao gồm các message type:
         └─────────────────┘
 ```
 
-**Phạm vi:** Tài liệu này chỉ định nghĩa **Protocol Layer** (frame format, encryption, message types). Để hiểu cách Protocol kết nối với MAC layer, xem [emic_lora_stack_architecture.md](./emic_lora_stack_architecture.md#3-mac-layer).
+**Phạm vi:** Tài liệu này mô tả **wire-level EMIC on-air frame format** và các quy tắc của **Protocol layer**.
+
+- **MAC layer** chịu trách nhiệm **serialize/transport** frame trên PHY (ACK, retry, timeout, filtering).
+- **Protocol layer** chịu trách nhiệm **ý nghĩa TYPE/payload** + **crypto rules** (nonce/AAD/MIC) + anti-replay.
+
+Để hiểu flow tổng thể và ranh giới trách nhiệm, xem [emic_lora_stack_architecture.md](./emic_lora_stack_architecture.md#3-mac-layer).
 
 ---
 
 ## 4. Tổng Quan Frame (Wire Format)
 
-**Định dạng trên dây (serialization):**
+**Định dạng (serialization):**
 
 ```
-┌──────────────┬──────────────┬────────┐
-│ Header (10B) │ Payload (N B)│ MIC (4)│
-└──────────────┴──────────────┴────────┘
+┌──────────────────┬──────────────────┬────────┐
+│ MAC Header (10B) │ Payload (N bytes)│ MIC (4)│
+└──────────────────┴──────────────────┴────────┘
 ```
 
-| Thành phần  | Kích thước | Mô tả                                          | Chi tiết                     |
-| ----------- | ---------: | ---------------------------------------------- | ---------------------------- |
-| **Header**  |       10B  | Frame metadata + addressing                    | Xem Phần 5                   |
-| **Payload** |    0..50B  | Encrypted message content (phụ thuộc TYPE)     | Xem Phần 6 + Phụ lục        |
-| **MIC**     |        4B  | Authentication tag (AES-CCM)                   | Xem Phần 7 & 8              |
+| Thành phần         | Kích thước | Mô tả                                    | Chi tiết               |
+| -------------------- | ------------: | ------------------------------------------ | ----------------------- |
+| **MAC Header** |           10B | Addressing + control flags + length        | Xem Phần 5             |
+| **Payload**    |        0..50B | Encrypted Protocol PDU (phụ thuộc TYPE)  | Xem Phần 6 + Phụ lục |
+| **MIC**        |            4B | AES-CCM auth tag (protects header+payload) | Xem Phần 7 & 8         |
+
+**Responsibility split (để tránh nhầm):**
+
+| Part                | Thuộc layer | Lý do                                                              |
+| ------------------- | ------------ | ------------------------------------------------------------------- |
+| MAC Header (10B)    | MAC          | MAC cần routing/filtering/ACK policy/len để vận hành transport |
+| Payload semantics   | Protocol     | TYPE & payload structure là logic ứng dụng/protocol              |
+| Nonce/AAD/MIC rules | Protocol     | Crypto correctness (AEAD) là end-to-end concern                    |
 
 **Toàn bộ frame = 10 + N + 4 byte** (N ≤ 50 do LoRa PHY limit 64B)
 
 **Header format (chi tiết):**
 
-| Trường      | Kích thước | Giá trị ví dụ | Mô tả                                  |
-| ----------- | ---------: | ------------- | -------------------------------------- |
-| `ver_type`  |        1B  | 0x49          | Version (2-bit) + TYPE (6-bit)        |
-| `flags`     |        1B  | 0x06          | Control flags (ACK_REQ, BCAST, KEY, …) |
-| `msg_id`    |        3B  | 0x000042      | Message counter (24-bit, big-endian)  |
-| `src`       |        2B  | 0x1234        | Source address (16-bit)               |
-| `dst`       |        2B  | 0x0000        | Destination address (16-bit)          |
-| `len`       |        1B  | 0x06          | Payload length (0..50)                |
+| Trường     | Kích thước | Giá trị ví dụ | Mô tả                                 |
+| ------------ | ------------: | ----------------- | --------------------------------------- |
+| `ver_type` |            1B | 0x49              | Version (2-bit) + TYPE (6-bit)          |
+| `flags`    |            1B | 0x06              | Control flags (ACK_REQ, BCAST, KEY, …) |
+| `msg_id`   |            3B | 0x000042          | Message counter (24-bit, big-endian)    |
+| `src`      |            2B | 0x1234            | Source address (16-bit)                 |
+| `dst`      |            2B | 0x0000            | Destination address (16-bit)            |
+| `len`      |            1B | 0x06              | Payload length (0..50)                  |
 
 **Mã hóa:** Header ở dạng plaintext (không encrypt); Payload được mã hóa bằng AES-128-CCM; MIC bảo vệ cả header lẫn payload.
 
@@ -149,10 +162,10 @@ Bit: [7..6]  [5..0]
      └──────┴──────────┘
 ```
 
-| Trường | Bit      | Giá trị | Mô tả                                   |
-| ------ | -------- | ------- | --------------------------------------- |
-| VER    | [7..6]   | 0b01    | Protocol version = 2                   |
-| TYPE   | [5..0]   | 0..63   | Message type (xem Phần 9)              |
+| Trường | Bit    | Giá trị | Mô tả                    |
+| -------- | ------ | --------- | -------------------------- |
+| VER      | [7..6] | 0b01      | Protocol version = 2       |
+| TYPE     | [5..0] | 0..63     | Message type (xem Phần 9) |
 
 **Ví dụ:** `ver_type = 0x49` → VER=01b (v2), TYPE=001001b (9=HEARTBEAT)
 
@@ -168,14 +181,14 @@ Bit: [7..5]  [4]    [3]   [2]     [1]     [0]
      └──────┴──────┴─────┴──────┴──────┴─────┘
 ```
 
-| Bit | Tên       | Giá trị | Mô tả                                                    |
-| --- | --------- | ------- | -------------------------------------------------------- |
-| 0   | `KEY`     | 0/1     | Key selector: 0=K0 (bootstrap), 1=K1 (operational)      |
-| 1   | `ENC`     | 0/1     | **1 = payload encrypted+authenticated by AES-128-CCM**   |
-| 2   | `ACK_REQ` | 0/1     | Request ACK from receiver (unicast only)                |
-| 3   | `ACK`     | 0/1     | Frame này là ACK response                              |
-| 4   | `BCAST`   | 0/1     | Destination is broadcast (khi dst=0xFFFF)              |
-| 7-5 | `R`       | 0       | Reserved (must be 0)                                     |
+| Bit | Tên        | Giá trị | Mô tả                                                      |
+| --- | ----------- | --------- | ------------------------------------------------------------ |
+| 0   | `KEY`     | 0/1       | Key selector: 0=K0 (bootstrap), 1=K1 (operational)           |
+| 1   | `ENC`     | 0/1       | **1 = payload encrypted+authenticated by AES-128-CCM** |
+| 2   | `ACK_REQ` | 0/1       | Request ACK from receiver (unicast only)                     |
+| 3   | `ACK`     | 0/1       | Frame này là ACK response                                  |
+| 4   | `BCAST`   | 0/1       | Destination is broadcast (khi dst=0xFFFF)                    |
+| 7-5 | `R`       | 0         | Reserved (must be 0)                                         |
 
 **Ràng buộc:** Nếu `BCAST=1` → `ACK_REQ` phải = 0 (broadcast không ACK)
 
@@ -194,14 +207,14 @@ Bit: [7..5]  [4]    [3]   [2]     [1]     [0]
 
 **Địa chỉ đặc biệt:**
 
-| Giá trị  | Ý nghĩa                                      |
-| -------- | -------------------------------------------- |
-| 0x0000   | Gateway (GW)                                 |
-| 0x0001   | ED #1 (short address range)                  |
-| ...      | ...                                          |
-| 0xFFFD   | ED #65533 (max addressable ED)               |
-| 0xFFFE   | Group address (system-defined group)         |
-| 0xFFFF   | Broadcast (tất cả devices) / Unjoined ED     |
+| Giá trị | Ý nghĩa                                  |
+| --------- | ------------------------------------------ |
+| 0x0000    | Gateway (GW)                               |
+| 0x0001    | ED #1 (short address range)                |
+| ...       | ...                                        |
+| 0xFFFD    | ED #65533 (max addressable ED)             |
+| 0xFFFE    | Group address (system-defined group)       |
+| 0xFFFF    | Broadcast (tất cả devices) / Unjoined ED |
 
 **Quy ước:** Khi ED chưa tham gia (`src=0xFFFF` trong JOIN_REQ), GW cấp `short_addr` trong JOIN_ACCEPT.
 
@@ -223,12 +236,12 @@ Bit: [7..5]  [4]    [3]   [2]     [1]     [0]
 
 **Ví dụ payload structures:**
 
-| TYPE           | Payload Format       | Kích thước | Ghi chú                  |
-| -------------- | -------------------- | ---------: | ----------------------- |
-| JOIN_REQ (1)   | seri_ed(6) + firm_id(3) + device_type(1) | 10B       | ED identity        |
-| ALARM (3)      | alarm_id(2) + status(1) + batt_v(2) | 5B       | Alarm event data        |
-| HEARTBEAT (9)  | status(1) + batt_v(2) + firm_id(3) | 6B       | Health check            |
-| ACK (8)        | acked_msg_id(3) + status(1) + rtc_s(4) | 4..8B   | ACK metadata            |
+| TYPE          | Payload Format                           | Kích thước | Ghi chú         |
+| ------------- | ---------------------------------------- | ------------: | ---------------- |
+| JOIN_REQ (1)  | seri_ed(6) + firm_id(3) + device_type(1) |           10B | ED identity      |
+| ALARM (3)     | alarm_id(2) + status(1) + batt_v(2)      |            5B | Alarm event data |
+| HEARTBEAT (9) | status(1) + batt_v(2) + firm_id(3)       |            6B | Health check     |
+| ACK (8)       | acked_msg_id(3) + status(1) + rtc_s(4)   |         4..8B | ACK metadata     |
 
 Xem Phần 9 & Phụ lục cho chi tiết từng TYPE.
 
@@ -238,13 +251,13 @@ Xem Phần 9 & Phụ lục cho chi tiết từng TYPE.
 
 **Thuộc tính:**
 
-| Khía cạnh     | Chi tiết                                    |
-| ------------- | ------------------------------------------- |
-| **Kích thước** | 4 byte (big-endian)                        |
-| **Thuật toán** | AES-128-CCM authentication tag (cắt ngắn) |
-| **Bảo vệ**     | Header (10B AAD) + Payload (N bytes)       |
-| **Bảo mật**    | ~2^-32 xác suất giả mạo per attempt       |
-| **Loại bỏ**    | Receiver không được bỏ qua; reject nếu lỗi |
+| Khía cạnh             | Chi tiết                                         |
+| ----------------------- | ------------------------------------------------- |
+| **Kích thước** | 4 byte (big-endian)                               |
+| **Thuật toán**  | AES-128-CCM authentication tag (cắt ngắn)       |
+| **Bảo vệ**      | Header (10B AAD) + Payload (N bytes)              |
+| **Bảo mật**     | ~2^-32 xác suất giả mạo per attempt           |
+| **Loại bỏ**     | Receiver không được bỏ qua; reject nếu lỗi |
 
 **Xem Phần 8 để hiểu cơ chế AES-CCM & MIC calculation.**
 
@@ -254,23 +267,23 @@ Xem Phần 9 & Phụ lục cho chi tiết từng TYPE.
 
 ### 8.1 Cipher Parameters
 
-| Tham số            | Giá trị         | Ghi chú                           |
-| ------------------- | --------------- | -------------------------------- |
-| **Algorithm**       | AES-128-CCM     | NIST-approved authenticated encryption |
-| **Key size**        | 128-bit (16B)   | K0 (bootstrap) hoặc K1 (operational) |
-| **Nonce size**      | 13 byte (104-bit) | Unique per (key, nonce) pair    |
-| **MIC size**        | 4 byte (32-bit) | Truncated from 16-byte tag      |
-| **AAD (Header)**    | 10 byte (protected, not encrypted) | Header fields: ver_type, flags, msg_id, src, dst, len |
-| **Plaintext**       | 0..50 byte      | Payload to encrypt              |
+| Tham số               | Giá trị                          | Ghi chú                                              |
+| ---------------------- | ---------------------------------- | ----------------------------------------------------- |
+| **Algorithm**    | AES-128-CCM                        | NIST-approved authenticated encryption                |
+| **Key size**     | 128-bit (16B)                      | K0 (bootstrap) hoặc K1 (operational)                 |
+| **Nonce size**   | 13 byte (104-bit)                  | Unique per (key, nonce) pair                          |
+| **MIC size**     | 4 byte (32-bit)                    | Truncated from 16-byte tag                            |
+| **AAD (Header)** | 10 byte (protected, not encrypted) | Header fields: ver_type, flags, msg_id, src, dst, len |
+| **Plaintext**    | 0..50 byte                         | Payload to encrypt                                    |
 
 **AES-CCM mode:** Combines AES-CCM (Counter with CBC-MAC) để cung cấp **authenticated encryption with associated data** (AEAD).
 
 ### 8.2 Key Management
 
-| Key      | ID    | Sử dụng cho                | Nguồn                                  |
-| -------- | ----- | ----------------------- | ------------------------------------- |
-| **K0**   | 0     | JOIN_REQ, JOIN_ACCEPT    | Pre-shared (hardcoded or OOB)        |
-| **K1**   | 1     | Tất cả traffic sau Join   | Derived từ JOIN_ACCEPT hoặc session mgmt |
+| Key          | ID | Sử dụng cho             | Nguồn                                     |
+| ------------ | -- | ------------------------- | ------------------------------------------ |
+| **K0** | 0  | JOIN_REQ, JOIN_ACCEPT     | Pre-shared (hardcoded or OOB)              |
+| **K1** | 1  | Tất cả traffic sau Join | Derived từ JOIN_ACCEPT hoặc session mgmt |
 
 **Key rotation:** Hiện tại, K0 và K1 cố định. Future versions có thể thêm key schedule.
 
@@ -284,13 +297,13 @@ Xem Phần 9 & Phụ lục cho chi tiết từng TYPE.
 └──────────┴────────┴────────────┴────────┴────────┘
 ```
 
-| Trường    | Byte | Nguồn                                          | Mô tả                   |
-| --------- | ---: | ---------------------------------------------- | ----------------------- |
-| `ctx6`    |    6 | `net_id` (post-Join) hoặc `seri_ed` (Join phase) | Network/device context  |
-| `src`     |    2 | Frame header field `src`                       | Source address          |
-| `msg_id`  |    3 | Frame header field `msg_id`                    | Message counter         |
-| `dir`     |    1 | Derived: `src==0x0000 ? 0x01 : 0x00`           | Direction (GW or ED)    |
-| `key_id`  |    1 | Frame header field `flags.KEY`                 | Key selector (0 or 1)   |
+| Trường   | Byte | Nguồn                                                | Mô tả                |
+| ---------- | ---: | ----------------------------------------------------- | ---------------------- |
+| `ctx6`   |    6 | `net_id` (post-Join) hoặc `seri_ed` (Join phase) | Network/device context |
+| `src`    |    2 | Frame header field `src`                            | Source address         |
+| `msg_id` |    3 | Frame header field `msg_id`                         | Message counter        |
+| `dir`    |    1 | Derived:`src==0x0000 ? 0x01 : 0x00`                 | Direction (GW or ED)   |
+| `key_id` |    1 | Frame header field `flags.KEY`                      | Key selector (0 or 1)  |
 
 **Yêu cầu:** Mỗi cặp (key, nonce) được sử dụng **tối đa một lần** → AES-CCM security guarantee.
 
@@ -359,13 +372,13 @@ if (new_msg_id > last_msg_id) {
 
 **Window size:** 1 (zero tolerance)
 
-| Đặc điểm          | EMIC (window=1) | LoRaWAN (window=32) |
-| --------------- | --------------- | ------------------- |
-| **Policy**      | Strictly monotonic | Reordering allowed  |
-| **Tolerance**   | 0 frames        | Up to +32 frames    |
-| **Example**     | Last=5: only 6+ accepted | Last=100: 101-132 OK |
-| **Tradeoff**    | ✅ Strong, ⚠️ No reorder | ✅ Tolerant, ⚠️ Complex |
-| **Phù hợp cho**    | Star topology (no hop reorder) | Public LoRaWAN (many hops) |
+| Đặc điểm            | EMIC (window=1)                | LoRaWAN (window=32)        |
+| ----------------------- | ------------------------------ | -------------------------- |
+| **Policy**        | Strictly monotonic             | Reordering allowed         |
+| **Tolerance**     | 0 frames                       | Up to +32 frames           |
+| **Example**       | Last=5: only 6+ accepted       | Last=100: 101-132 OK       |
+| **Tradeoff**      | ✅ Strong, ⚠️ No reorder     | ✅ Tolerant, ⚠️ Complex  |
+| **Phù hợp cho** | Star topology (no hop reorder) | Public LoRaWAN (many hops) |
 
 **Lý do chọn window=1 cho EMIC:**
 
@@ -387,25 +400,27 @@ Tên TYPE sử dụng **UPPER_SNAKE_CASE** và tuân thủ:
 
 ### 9.1 Type List
 
-| Type ID | Tên            | Hướng    | ACK_REQ | Ghi chú                                                |
-| ------: | -------------- | -------- | ------- | ------------------------------------------------------ |
-|       1 | JOIN_REQ       | ED → GW  | No      | ED requests to join network                            |
-|       2 | JOIN_ACCEPT    | GW → ED  | No      | GW assigns short_addr (or NACK)                        |
-|       3 | ALARM          | ED → GW  | Yes     | Alarm event (smoke, motion, tamper, …)                |
-|       4 | ALARM_CLEAR    | ED → GW  | Yes     | Alarm condition resolved                              |
-|       5 | SIREN_SILENCE  | GW → ED  | No      | Turn off/silence alert (broadcast)                    |
-|       6 | SET_OPERATIONAL| GW → ED  | No      | ED enters operational mode                             |
-|       8 | ACK            | GW ↔ ED  | No      | Acknowledgment (bidirectional)                        |
-|       9 | HEARTBEAT      | ED → GW  | Yes*    | Health check (battery, firmware, status)             |
-|      11 | LEAVE_NETWORK  | ED → GW  | Yes     | ED requests to leave network                          |
-|      12 | GW_SHUTDOWN    | GW → ED  | No      | GW shutting down (broadcast warning)                  |
-|      13 | PING           | GW → ED  | No      | Connectivity check (unicast or broadcast)             |
-|      14 | FAULT_REPORT   | ED → GW  | Yes     | Fault: intrusion, sensor error, low battery, …       |
-|      15 | FAULT_CLEAR    | ED → GW  | Yes     | Fault condition cleared                               |
-|      16 | CFG_SET        | GW → ED  | Yes     | Set configuration parameter                           |
-|      17 | CFG_RSP        | ED → GW  | Yes     | Configuration response (success + optional value)     |
-|      18 | TIME_SYNC      | GW → ED  | No      | Time synchronization (recommended broadcast)          |
-|      19 | GROUP_SET      | GW → ED  | Yes     | Assign/modify group membership (siren zones)          |
+**Hiện tại:** 15 message types đang được định nghĩa. TYPE field (6-bit) hỗ trợ tối đa 64 giá trị (0-63), còn 49 giá trị dành cho tương lai.
+
+| Type ID | Tên            | Hướng  | ACK_REQ | Ghi chú                                          |
+| ------: | --------------- | -------- | ------- | ------------------------------------------------- |
+|       1 | JOIN_REQ        | ED → GW | No      | ED requests to join network                       |
+|       2 | JOIN_ACCEPT     | GW → ED | No      | GW assigns short_addr (or NACK)                   |
+|       3 | ALARM           | ED → GW | Yes     | Alarm event (smoke, motion, tamper, …)           |
+|       4 | ALARM_CLEAR     | ED → GW | Yes     | Alarm condition resolved                          |
+|       5 | SIREN_SILENCE   | GW → ED | No      | Turn off/silence alert (broadcast)                |
+|       6 | SET_OPERATIONAL | GW → ED | No      | ED enters operational mode                        |
+|       8 | ACK             | GW ↔ ED | No      | Acknowledgment (bidirectional)                    |
+|       9 | HEARTBEAT       | ED → GW | Yes*    | Health check (battery, firmware, status)          |
+|      11 | LEAVE_NETWORK   | ED → GW | Yes     | ED requests to leave network                      |
+|      12 | GW_SHUTDOWN     | GW → ED | No      | GW shutting down (broadcast warning)              |
+|      13 | PING            | GW → ED | No      | Connectivity check (unicast or broadcast)         |
+|      14 | FAULT_REPORT    | ED → GW | Yes     | Fault: intrusion, sensor error, low battery, …   |
+|      15 | FAULT_CLEAR     | ED → GW | Yes     | Fault condition cleared                           |
+|      16 | CFG_SET         | GW → ED | Yes     | Set configuration parameter                       |
+|      17 | CFG_RSP         | ED → GW | Yes     | Configuration response (success + optional value) |
+|      18 | TIME_SYNC       | GW → ED | No      | Time synchronization (recommended broadcast)      |
+|      19 | GROUP_SET       | GW → ED | Yes     | Assign/modify group membership (siren zones)      |
 
 **Ghi chú:** * HEARTBEAT có ACK_REQ tuỳ chọn (khuyến nghị=1 cho tracking)
 
@@ -451,14 +466,14 @@ EDs receive: [Validate, silently process (no ACK response)]
 
 ## 11. Validation Rules
 
-| Điều kiện            | Hành động         | Ghi chú                    |
-| -------------------- | ------------------- | ------------------------- |
-| `ENC != 1`           | REJECT frame        | Giá trị dành riêng        |
-| `len > 50`           | REJECT frame        | Vượt quá LoRa PHY limit   |
-| MIC xác minh thất bại | REJECT (silently)   | Không ACK, không event    |
-| `msg_id <= last_msg_id` | REJECT (silently)   | Phát hiện replay          |
-| `BCAST=1 && ACK_REQ=1` | REJECT frame        | Protocol violation        |
-| Unknown TYPE         | Discard (gracefully) | Forward-compatibility     |
+| Điều kiện              | Hành động         | Ghi chú                   |
+| ------------------------- | -------------------- | -------------------------- |
+| `ENC != 1`              | REJECT frame         | Giá trị dành riêng     |
+| `len > 50`              | REJECT frame         | Vượt quá LoRa PHY limit |
+| MIC xác minh thất bại  | REJECT (silently)    | Không ACK, không event   |
+| `msg_id <= last_msg_id` | REJECT (silently)    | Phát hiện replay         |
+| `BCAST=1 && ACK_REQ=1`  | REJECT frame         | Protocol violation         |
+| Unknown TYPE              | Discard (gracefully) | Forward-compatibility      |
 
 **Silently:** Receiver không gửi ACK, không báo event, không log (tránh side-channel leaks).
 
@@ -477,13 +492,13 @@ EDs receive: [Validate, silently process (no ACK response)]
 
 ## 13. Error Handling
 
-| Error Scenario           | Receiver Action     | Sender Action                    |
-| ----------------------- | -------------------- | -------------------------------- |
-| **Frame MIC fails**     | Reject silently      | Timeout → MAC retry              |
-| **Frame replay detected** | Reject silently      | Timeout → MAC retry              |
-| **ACK timeout**         | N/A (receiver side)  | Exponential backoff retry (MAC)   |
-| **Unknown TYPE**        | Discard gracefully   | N/A (forward-compatible)        |
-| **Invalid len**         | Reject               | Sender error in serialization    |
+| Error Scenario                  | Receiver Action     | Sender Action                   |
+| ------------------------------- | ------------------- | ------------------------------- |
+| **Frame MIC fails**       | Reject silently     | Timeout → MAC retry            |
+| **Frame replay detected** | Reject silently     | Timeout → MAC retry            |
+| **ACK timeout**           | N/A (receiver side) | Exponential backoff retry (MAC) |
+| **Unknown TYPE**          | Discard gracefully  | N/A (forward-compatible)        |
+| **Invalid len**           | Reject              | Sender error in serialization   |
 
 **MAC layer retry:** Xem [emic_lora_stack_architecture.md Phần 3.4](./emic_lora_stack_architecture.md#34-retry-logic) để hiểu MAC retry strategy.
 
@@ -563,13 +578,13 @@ frame[4] = 0x42;  // msg_id byte 2 (LSB)
 
 ### 16.2 Security Pitfalls (Cần Tránh)
 
-| Lỗi                    | Hậu quả            | Cách Tránh                          |
-| ---------------------- | ------------------- | ---------------------------------- |
-| Reuse (key, nonce)     | AES-CCM breaks      | Increment msg_id mỗi frame       |
-| Weak key schedule      | Attacker derives K1 | Sử dụng cryptographically-sound KDF |
-| Decode without MIC check | Truncate attack  | **Always verify MIC first**        |
-| Ignore anti-replay     | Replay attack       | Maintain last_msg_id per source  |
-| Log failed MIC frames  | Timing side-channel | Silently reject (no logging)       |
+| Lỗi                     | Hậu quả           | Cách Tránh                          |
+| ------------------------ | ------------------- | ------------------------------------- |
+| Reuse (key, nonce)       | AES-CCM breaks      | Increment msg_id mỗi frame           |
+| Weak key schedule        | Attacker derives K1 | Sử dụng cryptographically-sound KDF |
+| Decode without MIC check | Truncate attack     | **Always verify MIC first**     |
+| Ignore anti-replay       | Replay attack       | Maintain last_msg_id per source       |
+| Log failed MIC frames    | Timing side-channel | Silently reject (no logging)          |
 
 ### 16.3 Frame Example: HEARTBEAT TX
 
@@ -709,6 +724,10 @@ handle_heartbeat_event(src, status, batt_v_x100, firm_id);
 ---
 
 **Tài liệu này hoàn chỉnh cho triển khai Production (V2).**
+
+---
+
+## 18. Chi tiết từng loại thông báo (Phụ lục)
 
 ### JOIN_REQ (ED → GW, TYPE=1)
 

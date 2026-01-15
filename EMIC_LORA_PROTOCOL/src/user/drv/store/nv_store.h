@@ -56,4 +56,56 @@ void nv_store_set_smoke_sensitivity(uint16_t v);
 uint16_t nv_store_get_heat_sensitivity(void);
 void nv_store_set_heat_sensitivity(uint16_t v);
 
+/* ===== V2.0 Protocol Keys and State ===== */
+
+/**
+ * @brief Read bootstrap key K0 from NVM (16 bytes).
+ * @param out_key Buffer to receive key (must be 16 bytes).
+ * @return 1 if key exists in NVM, 0 if not provisioned.
+ */
+uint8_t nv_store_read_key_k0(uint8_t out_key[16]);
+
+/**
+ * @brief Write bootstrap key K0 to NVM (16 bytes).
+ * @param key Key data to write (must be 16 bytes).
+ */
+void nv_store_write_key_k0(const uint8_t key[16]);
+
+/**
+ * @brief Read operational key K1 from NVM (16 bytes).
+ * @param out_key Buffer to receive key (must be 16 bytes).
+ * @return 1 if key exists in NVM, 0 if not provisioned.
+ */
+uint8_t nv_store_read_key_k1(uint8_t out_key[16]);
+
+/**
+ * @brief Write operational key K1 to NVM (16 bytes).
+ * @param key Key data to write (must be 16 bytes).
+ */
+void nv_store_write_key_k1(const uint8_t key[16]);
+
+/**
+ * @brief Read last used msg_id counter from NVM (24-bit value in uint32_t).
+ * @return Last msg_id value, or 0 if not yet initialized.
+ */
+uint32_t nv_store_get_msg_id(void);
+
+/**
+ * @brief Write msg_id counter to NVM for persistence across reboots.
+ * @param msg_id Current msg_id value (24-bit, upper 8 bits ignored).
+ */
+void nv_store_set_msg_id(uint32_t msg_id);
+
+/**
+ * @brief Read assigned short address from NVM.
+ * @return Short address (0xFFFF if not joined).
+ */
+uint16_t nv_store_get_short_addr(void);
+
+/**
+ * @brief Write assigned short address to NVM.
+ * @param addr Short address assigned by gateway.
+ */
+void nv_store_set_short_addr(uint16_t addr);
+
 #endif
