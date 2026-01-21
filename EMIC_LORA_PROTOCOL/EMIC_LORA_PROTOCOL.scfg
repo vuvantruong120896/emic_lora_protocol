@@ -242,9 +242,10 @@
         <pinItem allocation="17" comments="" direction="None" id="SCK20" isUsedBySoftware="true" locked="false" operationMode="" status="0"/>
         <pinItem allocation="33" comments="" direction="O" id="P130" isUsedBySoftware="true" locked="false" operationMode="" status="0"/>
         <pinItem allocation="7" comments="" direction="None" id="INTP8" isUsedBySoftware="true" locked="false" operationMode="" status="0"/>
+        <pinnumItem comment="" id="26" symbolicname="BUZZER_BOOT_PIN"/>
+        <pinnumItem comment="" id="32" symbolicname="LED_GREEN_PIN"/>
         <pinnumItem comment="" id="33" symbolicname="LED_RED_PIN"/>
         <pinnumItem comment="" id="14" symbolicname="RADIO_RESET_PIN"/>
-        <pinnumItem comment="" id="26" symbolicname="BUZZER_BOOT_PIN"/>
         <pinnumItem comment="" id="15" symbolicname="RADIO_ANT_SW_PIN"/>
         <pinnumItem comment="" id="37" symbolicname="DEBUG_UARTA1_TX_PIN"/>
         <pinnumItem comment="" id="16" symbolicname="RADIO_BUSY_PIN"/>
@@ -253,7 +254,6 @@
         <pinnumItem comment="" id="19" symbolicname="RADIO_MOSI_PIN"/>
         <pinnumItem comment="" id="5" symbolicname="BUZZER_PIN"/>
         <pinnumItem comment="" id="7" symbolicname="BUTTON_PIN"/>
-        <pinnumItem comment="" id="32" symbolicname="LED_GREEN_PIN"/>
         <pinnumItem comment="" id="43" symbolicname="RADIO_DIO_1_PIN"/>
         <pinnumItem comment="" id="21" symbolicname="RADIO_SS_PIN"/>
     </tool>
@@ -1500,7 +1500,7 @@
                 <gridItem id="BSP_CFG_USER_WARM_START_PRE_C_FUNCTION" selectedIndex="my_sw_warmstart_prec_function"/>
                 <gridItem id="BSP_CFG_USER_WARM_START_CALLBACK_POST_INITC_ENABLED" selectedIndex="0"/>
                 <gridItem id="BSP_CFG_USER_WARM_START_POST_C_FUNCTION" selectedIndex="my_sw_warmstart_postc_function"/>
-                <gridItem id="BSP_CFG_WDT_REFRESH_ENABLE" selectedIndex="0"/>
+                <gridItem id="BSP_CFG_WDT_REFRESH_ENABLE" selectedIndex="1"/>
                 <gridItem id="BSP_CFG_USER_WDT_REFRESH_INIT_FUNCTION" selectedIndex="my_sw_wdt_refresh_init_function"/>
                 <gridItem id="BSP_CFG_USER_WDT_REFRESH_SETTING_FUNCTION" selectedIndex="my_sw_wdt_refresh_setting_function"/>
             </component>
@@ -1511,6 +1511,44 @@
             <component description="Dependency : r_bsp version(s) 1.62&#10;The common API functions of Renesas Flash Driver RL78 Type 01 are called from the user program to reprogram the code flash memory or data flash memory or extra area in the RL78/G2x." detailDescription="Flash Driver[Renesas Flash Driver RL78 Type01 Flash Common]" display="r_rfd_rl78_t01_common" id="r_rfd_rl78_t01_common1.20" version="1.20"/>
             <source description="Components supporting Software integration" display="Generic SW" id="com.renesas.smc.tools.swcomponent.generic.source"/>
             <source description="Components supporting Software integration" display="Generic SW" id="com.renesas.smc.tools.swcomponent.generic.source"/>
+        </configuration>
+        <configuration apiMode="FULL_API" id="ab38a917-a324-4959-81b6-ecc52ae18d6f" inuse="true" name="Config_WDT">
+            <allocatable id="WDT">
+                <isocket id="fIL" value="32.768"/>
+                <option enabled="true" id="OperationHSSmdset" selection="Stopped">
+                    <item id="Enabled" input="" vlaue="0"/>
+                    <item id="Stopped" input="" vlaue="0"/>
+                </option>
+                <option enabled="true" id="Overfltime" selection="17">
+                    <item id="7" input="" vlaue="0"/>
+                    <item id="8" input="" vlaue="0"/>
+                    <item id="9" input="" vlaue="0"/>
+                    <item id="10" input="" vlaue="0"/>
+                    <item id="12" input="" vlaue="0"/>
+                    <item id="14" input="" vlaue="0"/>
+                    <item id="15" input="" vlaue="0"/>
+                    <item id="17" input="" vlaue="0"/>
+                </option>
+                <option enabled="true" id="WinOpenPe" selection="100">
+                    <item id="50" input="" vlaue="0"/>
+                    <item id="100" input="" vlaue="0"/>
+                </option>
+                <option enabled="true" id="EnInt" selection="Uncheck">
+                    <item id="Check" input="" vlaue="0"/>
+                    <item id="Uncheck" input="" vlaue="0"/>
+                </option>
+                <option enabled="false" id="Priority" selection="Level3">
+                    <item id="Level0" input="" vlaue="0"/>
+                    <item id="Level1" input="" vlaue="0"/>
+                    <item id="Level2" input="" vlaue="0"/>
+                    <item id="Level3" input="" vlaue="0"/>
+                </option>
+            </allocatable>
+            <component description="The watchdog timer (WDT) is used to detect an inadvertent program loop. If a program loop is detected, an internal reset signal is generated." detailDescription="" display="Watchdog Timer" id="com.renesas.smc.tools.swcomponent.codegenerator.rl78.wdt" version="1.5.0"/>
+            <allocator channelLevel0="" channelLevel1="" channelLevel2="" channelLevel3="" channelLevel4="" channelLevel5="" description="Watchdog Timer" display="WDT" id="com.renesas.smc.tools.swcomponent.codegenerator.rl78.wdt" type="WDT">
+                <context/>
+            </allocator>
+            <source description="Code generator components provide peripheral drivers with customized generated source geared towards small code size" display="Code Generator" id="com.renesas.smc.tools.swcomponent.codegenerator.source"/>
         </configuration>
     </tool>
     <tool id="System">

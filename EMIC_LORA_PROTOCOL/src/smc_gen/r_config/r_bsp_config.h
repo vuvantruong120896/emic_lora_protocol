@@ -134,7 +134,7 @@
 
 #if defined(__ICCRL78__)
 /* Option byte setting(When using IAR) */
-#define BSP_CFG_OPTBYTE0_VALUE (0xEFU) /* Generated value. Do not edit this manually */
+#define BSP_CFG_OPTBYTE0_VALUE (0x7EU) /* Generated value. Do not edit this manually */
 #define BSP_CFG_OPTBYTE1_VALUE (0x3AU) /* Generated value. Do not edit this manually */
 #define BSP_CFG_OPTBYTE2_VALUE (0xEAU) /* Generated value. Do not edit this manually */
 #define BSP_CFG_OPTBYTE3_VALUE (0x84U) /* Generated value. Do not edit this manually */
@@ -1209,7 +1209,7 @@
    In addition, a callback to the user defined my_sw_wdt_refresh_setting_function occurs
    during the oscillation stabilization wait time of the subsystem clock.
 */
-#define BSP_CFG_WDT_REFRESH_ENABLE                   (0)
+#define BSP_CFG_WDT_REFRESH_ENABLE                   (1)
 #define BSP_CFG_USER_WDT_REFRESH_INIT_FUNCTION       my_sw_wdt_refresh_init_function
 #define BSP_CFG_USER_WDT_REFRESH_SETTING_FUNCTION    my_sw_wdt_refresh_setting_function
 

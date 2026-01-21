@@ -40,8 +40,10 @@ static const uint32_t s_channel_hz[RADIO_CHANNEL_COUNT] = {
 };
 
 /** @brief Current radio channel index (0-8). */
-/** @brief Current radio channel index (0-8). */
 static uint8_t s_channel_idx;
+
+/** @brief Current radio state (for diagnostics and state tracking). */
+static radio_state_t s_radio_state;
 
 /**
  * @brief Process pending SX1262 IRQ status and translate to radio events.
@@ -137,6 +139,7 @@ void radio_init(void)
     s_busy = 0U;
 
     s_channel_idx = 0U;
+    s_radio_state = RADIO_STATE_STDBY_RC;
 
     sx1262_init(&cfg);
 }
@@ -173,6 +176,7 @@ void radio_request_cad(uint8_t cad_symbols)
 {
     s_ev = RADIO_EVENT_NONE;
     s_busy = 1U;
+    s_radio_state = RADIO_STATE_CAD;
     sx1262_wakeup();
     sx1262_start_cad(cad_symbols);
 }
@@ -181,6 +185,7 @@ void radio_request_rx(uint16_t timeout_ms)
 {
     s_ev = RADIO_EVENT_NONE;
     s_busy = 1U;
+    s_radio_state = RADIO_STATE_RX;
     sx1262_wakeup();
     sx1262_start_rx(timeout_ms);
 }
@@ -189,6 +194,7 @@ void radio_request_tx(const uint8_t *payload, uint8_t len)
 {
     s_ev = RADIO_EVENT_NONE;
     s_busy = 1U;
+    s_radio_state = RADIO_STATE_TX;
     sx1262_wakeup();
     sx1262_start_tx(payload, len);
 
@@ -204,6 +210,7 @@ radio_event_t radio_poll_event(void)
         if (ev != RADIO_EVENT_NONE)
         {
             s_busy = 0U;
+            s_radio_state = RADIO_STATE_STDBY_RC; /* Return to standby */
         }
         return ev;
     }
@@ -222,12 +229,18 @@ void radio_sleep_if_idle(void)
         return;
     }
 
+    s_radio_state = RADIO_STATE_SLEEP;
     sx1262_sleep();
 }
 
 uint8_t radio_is_sleeping(void)
 {
     return sx1262_is_sleeping();
+}
+
+radio_state_t radio_get_state(void)
+{
+    return s_radio_state;
 }
 
 uint8_t radio_read_rx_payload(uint8_t *dst, uint8_t dst_max)

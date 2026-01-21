@@ -12,13 +12,7 @@
 #include <string.h>
 
 #define NV_STORE_DF_MAGIC           (0x5453564EU) /* 'NVST' little-endian */
-#define NV_STORE_DF_VERSION_V1      (1U)
-#define NV_STORE_DF_VERSION_V2      (2U)
-#define NV_STORE_DF_VERSION_V3      (3U)
-#define NV_STORE_DF_VERSION_V4      (4U)
-#define NV_STORE_DF_VERSION_V5      (5U)
-#define NV_STORE_DF_VERSION_V6      (6U)
-#define NV_STORE_DF_VERSION_V7      (7U)
+#define NV_STORE_DF_VERSION_CURRENT (7U)
 
 #define NV_STORE_DF_BLOCK_A         (0U)
 #define NV_STORE_DF_BLOCK_B         (1U)
@@ -33,106 +27,8 @@
 #define NV_STORE_CFG_HB_UNSET_S         ((uint16_t)0U)
 #define NV_STORE_CFG_SENS_UNSET         ((uint16_t)0U)
 
-typedef struct
-{
-    uint32_t magic;
-    uint16_t version;
-    uint16_t length;
-    uint32_t seq;
-    uint32_t fcnt_up;
-    uint16_t last_alarm_id;
-    uint16_t crc16;
-} nv_store_df_record_v1_t;
-
-typedef struct
-{
-    uint32_t magic;
-    uint16_t version;
-    uint16_t length;
-    uint32_t seq;
-    uint32_t fcnt_up;
-    uint16_t last_alarm_id;
-    uint8_t lora_channel_idx;
-    uint8_t reserved[3];
-    uint16_t crc16;
-} nv_store_df_record_v2_t;
-
-typedef struct
-{
-    uint32_t magic;
-    uint16_t version;
-    uint16_t length;
-    uint32_t seq;
-    uint32_t fcnt_up;
-    uint16_t last_alarm_id;
-    uint8_t lora_channel_idx;
-    uint8_t pan_id[6];
-    uint8_t seri_ed[6];
-    uint8_t reserved[3];
-    uint16_t crc16;
-} nv_store_df_record_v3_t;
-
-typedef struct
-{
-    uint32_t magic;
-    uint16_t version;
-    uint16_t length;
-    uint32_t seq;
-    uint32_t fcnt_up;
-    uint32_t fcnt_down;
-    uint16_t last_alarm_id;
-    uint8_t lora_channel_idx;
-    uint8_t pan_id[6];
-    uint8_t seri_ed[6];
-    uint32_t fire_start_epoch_s;
-    uint8_t reserved[3];
-    uint16_t crc16;
-} nv_store_df_record_v4_t;
-
-typedef struct
-{
-    uint32_t magic;
-    uint16_t version;
-    uint16_t length;
-    uint32_t seq;
-    uint32_t fcnt_up;
-    uint32_t fcnt_down;
-    uint16_t last_alarm_id;
-    uint8_t lora_channel_idx;
-    uint8_t pan_id[6];
-    uint8_t seri_ed[6];
-    uint32_t fire_start_epoch_s;
-    int16_t lora_rssi_threshold_dbm;
-    uint16_t heartbeat_period_s;
-    uint8_t smoke_sensitivity;
-    uint8_t heat_sensitivity;
-    uint8_t reserved[1];
-    uint16_t crc16;
-} nv_store_df_record_v5_t;
-
-typedef struct
-{
-    uint32_t magic;
-    uint16_t version;
-    uint16_t length;
-    uint32_t seq;
-    uint32_t fcnt_up;
-    uint32_t fcnt_down;
-    uint16_t last_alarm_id;
-    uint8_t lora_channel_idx;
-    uint8_t pan_id[6];
-    uint8_t seri_ed[6];
-    uint32_t fire_start_epoch_s;
-    int16_t lora_rssi_threshold_dbm;
-    uint16_t heartbeat_period_s;
-    uint16_t smoke_sensitivity;
-    uint16_t heat_sensitivity;
-    uint8_t reserved[3];
-    uint16_t crc16;
-} nv_store_df_record_v6_t;
-
 /**
- * @brief NV Store Data Flash record V7 (adds V2.0 protocol keys and msg_id).
+ * @brief NV Store Data Flash record (current format: V7 with V2.0 protocol keys and msg_id).
  * @details Structure layout:
  * - V6 fields (fcnt, alarm_id, channel, pan_id, seri_ed, fire_start, config)
  * - V2.0 protocol: key_k0[16], key_k1[16], msg_id (24-bit counter), short_addr (16-bit)
@@ -161,7 +57,7 @@ typedef struct
     uint16_t short_addr;         /* Assigned short address (0xFFFF=unjoined) */
     uint8_t reserved[1];
     uint16_t crc16;
-} nv_store_df_record_v7_t;
+} nv_store_df_record_t;
 
 static uint32_t s_fcnt_up;
 static uint32_t s_fcnt_down;
@@ -190,144 +86,24 @@ static uint16_t nv_store_df_crc16(const void *rec, uint16_t len_without_crc)
     return crc16_calculate((const uint8_t *)rec, len_without_crc);
 }
 
-static uint8_t nv_store_df_record_v1_is_valid(const nv_store_df_record_v1_t *rec)
+static uint8_t nv_store_df_record_is_valid(const nv_store_df_record_t *rec)
 {
     if (rec->magic != NV_STORE_DF_MAGIC)
     {
         return 0U;
     }
 
-    if (rec->version != NV_STORE_DF_VERSION_V1)
+    if (rec->version != NV_STORE_DF_VERSION_CURRENT)
     {
         return 0U;
     }
 
-    if (rec->length != (uint16_t)sizeof(nv_store_df_record_v1_t))
+    if (rec->length != (uint16_t)sizeof(nv_store_df_record_t))
     {
         return 0U;
     }
 
-    return (nv_store_df_crc16(rec, (uint16_t)(sizeof(nv_store_df_record_v1_t) - sizeof(rec->crc16))) == rec->crc16) ? 1U : 0U;
-}
-
-static uint8_t nv_store_df_record_v2_is_valid(const nv_store_df_record_v2_t *rec)
-{
-    if (rec->magic != NV_STORE_DF_MAGIC)
-    {
-        return 0U;
-    }
-
-    if (rec->version != NV_STORE_DF_VERSION_V2)
-    {
-        return 0U;
-    }
-
-    if (rec->length != (uint16_t)sizeof(nv_store_df_record_v2_t))
-    {
-        return 0U;
-    }
-
-    return (nv_store_df_crc16(rec, (uint16_t)(sizeof(nv_store_df_record_v2_t) - sizeof(rec->crc16))) == rec->crc16) ? 1U : 0U;
-}
-
-static uint8_t nv_store_df_record_v3_is_valid(const nv_store_df_record_v3_t *rec)
-{
-    if (rec->magic != NV_STORE_DF_MAGIC)
-    {
-        return 0U;
-    }
-
-    if (rec->version != NV_STORE_DF_VERSION_V3)
-    {
-        return 0U;
-    }
-
-    if (rec->length != (uint16_t)sizeof(nv_store_df_record_v3_t))
-    {
-        return 0U;
-    }
-
-    return (nv_store_df_crc16(rec, (uint16_t)(sizeof(nv_store_df_record_v3_t) - sizeof(rec->crc16))) == rec->crc16) ? 1U : 0U;
-}
-
-static uint8_t nv_store_df_record_v4_is_valid(const nv_store_df_record_v4_t *rec)
-{
-    if (rec->magic != NV_STORE_DF_MAGIC)
-    {
-        return 0U;
-    }
-
-    if (rec->version != NV_STORE_DF_VERSION_V4)
-    {
-        return 0U;
-    }
-
-    if (rec->length != (uint16_t)sizeof(nv_store_df_record_v4_t))
-    {
-        return 0U;
-    }
-
-    return (nv_store_df_crc16(rec, (uint16_t)(sizeof(nv_store_df_record_v4_t) - sizeof(rec->crc16))) == rec->crc16) ? 1U : 0U;
-}
-
-static uint8_t nv_store_df_record_v5_is_valid(const nv_store_df_record_v5_t *rec)
-{
-    if (rec->magic != NV_STORE_DF_MAGIC)
-    {
-        return 0U;
-    }
-
-    if (rec->version != NV_STORE_DF_VERSION_V5)
-    {
-        return 0U;
-    }
-
-    if (rec->length != (uint16_t)sizeof(nv_store_df_record_v5_t))
-    {
-        return 0U;
-    }
-
-    return (nv_store_df_crc16(rec, (uint16_t)(sizeof(nv_store_df_record_v5_t) - sizeof(rec->crc16))) == rec->crc16) ? 1U : 0U;
-}
-
-static uint8_t nv_store_df_record_v6_is_valid(const nv_store_df_record_v6_t *rec)
-{
-    if (rec->magic != NV_STORE_DF_MAGIC)
-    {
-        return 0U;
-    }
-
-    if (rec->version != NV_STORE_DF_VERSION_V6)
-    {
-        return 0U;
-    }
-
-    if (rec->length != (uint16_t)sizeof(nv_store_df_record_v6_t))
-    {
-        return 0U;
-    }
-
-    return (nv_store_df_crc16(rec, (uint16_t)(sizeof(nv_store_df_record_v6_t) - sizeof(rec->crc16))) == rec->crc16) ? 1U : 0U;
-}
-
-static uint8_t nv_store_df_record_v7_is_valid(const nv_store_df_record_v7_t *rec)
-{
-    if (rec->magic != NV_STORE_DF_MAGIC)
-    {
-        return 0U;
-    }
-
-    if (rec->version != NV_STORE_DF_VERSION_V7)
-    {
-        return 0U;
-    }
-
-    if (rec->length != (uint16_t)sizeof(nv_store_df_record_v7_t))
-    {
-        return 0U;
-    }
-
-    return (nv_store_df_crc16(rec, (uint16_t)(sizeof(nv_store_df_record_v7_t) - sizeof(rec->crc16))) == rec->crc16) ? 1U : 0U;
+    return (nv_store_df_crc16(rec, (uint16_t)(sizeof(nv_store_df_record_t) - sizeof(rec->crc16))) == rec->crc16) ? 1U : 0U;
 }
 
 static void nv_store_df_read_block_raw(uint8_t block_number, uint8_t *out, uint16_t len)
@@ -336,148 +112,10 @@ static void nv_store_df_read_block_raw(uint8_t block_number, uint8_t *out, uint1
     hal_dataflash_read(addr, out, len);
 }
 
-static uint8_t nv_store_df_pick_active_block_v2(const nv_store_df_record_v2_t *a, const nv_store_df_record_v2_t *b)
+static uint8_t nv_store_df_pick_active_block(const nv_store_df_record_t *a, const nv_store_df_record_t *b)
 {
-    uint8_t a_ok = nv_store_df_record_v2_is_valid(a);
-    uint8_t b_ok = nv_store_df_record_v2_is_valid(b);
-
-    if ((a_ok == 0U) && (b_ok == 0U))
-    {
-        return 0xFFU;
-    }
-
-    if (a_ok != 0U && b_ok == 0U)
-    {
-        return NV_STORE_DF_BLOCK_A;
-    }
-
-    if (b_ok != 0U && a_ok == 0U)
-    {
-        return NV_STORE_DF_BLOCK_B;
-    }
-
-    return (b->seq >= a->seq) ? NV_STORE_DF_BLOCK_B : NV_STORE_DF_BLOCK_A;
-}
-
-static uint8_t nv_store_df_pick_active_block_v3(const nv_store_df_record_v3_t *a, const nv_store_df_record_v3_t *b)
-{
-    uint8_t a_ok = nv_store_df_record_v3_is_valid(a);
-    uint8_t b_ok = nv_store_df_record_v3_is_valid(b);
-
-    if ((a_ok == 0U) && (b_ok == 0U))
-    {
-        return 0xFFU;
-    }
-
-    if (a_ok != 0U && b_ok == 0U)
-    {
-        return NV_STORE_DF_BLOCK_A;
-    }
-
-    if (b_ok != 0U && a_ok == 0U)
-    {
-        return NV_STORE_DF_BLOCK_B;
-    }
-
-    return (b->seq >= a->seq) ? NV_STORE_DF_BLOCK_B : NV_STORE_DF_BLOCK_A;
-}
-
-static uint8_t nv_store_df_pick_active_block_v4(const nv_store_df_record_v4_t *a, const nv_store_df_record_v4_t *b)
-{
-    uint8_t a_ok = nv_store_df_record_v4_is_valid(a);
-    uint8_t b_ok = nv_store_df_record_v4_is_valid(b);
-
-    if ((a_ok == 0U) && (b_ok == 0U))
-    {
-        return 0xFFU;
-    }
-
-    if (a_ok != 0U && b_ok == 0U)
-    {
-        return NV_STORE_DF_BLOCK_A;
-    }
-
-    if (b_ok != 0U && a_ok == 0U)
-    {
-        return NV_STORE_DF_BLOCK_B;
-    }
-
-    return (b->seq >= a->seq) ? NV_STORE_DF_BLOCK_B : NV_STORE_DF_BLOCK_A;
-}
-
-static uint8_t nv_store_df_pick_active_block_v5(const nv_store_df_record_v5_t *a, const nv_store_df_record_v5_t *b)
-{
-    uint8_t a_ok = nv_store_df_record_v5_is_valid(a);
-    uint8_t b_ok = nv_store_df_record_v5_is_valid(b);
-
-    if ((a_ok == 0U) && (b_ok == 0U))
-    {
-        return 0xFFU;
-    }
-
-    if (a_ok != 0U && b_ok == 0U)
-    {
-        return NV_STORE_DF_BLOCK_A;
-    }
-
-    if (b_ok != 0U && a_ok == 0U)
-    {
-        return NV_STORE_DF_BLOCK_B;
-    }
-
-    return (b->seq >= a->seq) ? NV_STORE_DF_BLOCK_B : NV_STORE_DF_BLOCK_A;
-}
-
-static uint8_t nv_store_df_pick_active_block_v6(const nv_store_df_record_v6_t *a, const nv_store_df_record_v6_t *b)
-{
-    uint8_t a_ok = nv_store_df_record_v6_is_valid(a);
-    uint8_t b_ok = nv_store_df_record_v6_is_valid(b);
-
-    if ((a_ok == 0U) && (b_ok == 0U))
-    {
-        return 0xFFU;
-    }
-
-    if (a_ok != 0U && b_ok == 0U)
-    {
-        return NV_STORE_DF_BLOCK_A;
-    }
-
-    if (b_ok != 0U && a_ok == 0U)
-    {
-        return NV_STORE_DF_BLOCK_B;
-    }
-
-    return (b->seq >= a->seq) ? NV_STORE_DF_BLOCK_B : NV_STORE_DF_BLOCK_A;
-}
-
-static uint8_t nv_store_df_pick_active_block_v7(const nv_store_df_record_v7_t *a, const nv_store_df_record_v7_t *b)
-{
-    uint8_t a_ok = nv_store_df_record_v7_is_valid(a);
-    uint8_t b_ok = nv_store_df_record_v7_is_valid(b);
-
-    if ((a_ok == 0U) && (b_ok == 0U))
-    {
-        return 0xFFU;
-    }
-
-    if (a_ok != 0U && b_ok == 0U)
-    {
-        return NV_STORE_DF_BLOCK_A;
-    }
-
-    if (b_ok != 0U && a_ok == 0U)
-    {
-        return NV_STORE_DF_BLOCK_B;
-    }
-
-    return (b->seq >= a->seq) ? NV_STORE_DF_BLOCK_B : NV_STORE_DF_BLOCK_A;
-}
-
-static uint8_t nv_store_df_pick_active_block_v1(const nv_store_df_record_v1_t *a, const nv_store_df_record_v1_t *b)
-{
-    uint8_t a_ok = nv_store_df_record_v1_is_valid(a);
-    uint8_t b_ok = nv_store_df_record_v1_is_valid(b);
+    uint8_t a_ok = nv_store_df_record_is_valid(a);
+    uint8_t b_ok = nv_store_df_record_is_valid(b);
 
     if ((a_ok == 0U) && (b_ok == 0U))
     {
@@ -534,12 +172,12 @@ static void nv_store_df_commit(uint8_t force)
     }
 
     {
-        nv_store_df_record_v7_t rec;
+        nv_store_df_record_t rec;
         uint8_t target = (s_df_active_block == NV_STORE_DF_BLOCK_A) ? NV_STORE_DF_BLOCK_B : NV_STORE_DF_BLOCK_A;
 
         rec.magic = NV_STORE_DF_MAGIC;
-        rec.version = NV_STORE_DF_VERSION_V7;
-        rec.length = (uint16_t)sizeof(nv_store_df_record_v7_t);
+        rec.version = NV_STORE_DF_VERSION_CURRENT;
+        rec.length = (uint16_t)sizeof(nv_store_df_record_t);
         rec.seq = s_df_seq + 1UL;
         rec.fcnt_up = s_fcnt_up;
         rec.fcnt_down = s_fcnt_down;
@@ -558,9 +196,9 @@ static void nv_store_df_commit(uint8_t force)
         rec.msg_id = s_msg_id & 0x00FFFFFFUL;
         rec.short_addr = s_short_addr;
         rec.reserved[0] = 0U;
-        rec.crc16 = nv_store_df_crc16(&rec, (uint16_t)(sizeof(nv_store_df_record_v7_t) - sizeof(rec.crc16)));
+        rec.crc16 = nv_store_df_crc16(&rec, (uint16_t)(sizeof(nv_store_df_record_t) - sizeof(rec.crc16)));
 
-        if (nv_store_df_write_record(target, (const uint8_t *)&rec, (uint16_t)sizeof(nv_store_df_record_v7_t)) != 0U)
+        if (nv_store_df_write_record(target, (const uint8_t *)&rec, (uint16_t)sizeof(nv_store_df_record_t)) != 0U)
         {
             s_df_active_block = target;
             s_df_seq = rec.seq;
@@ -570,20 +208,8 @@ static void nv_store_df_commit(uint8_t force)
 
 void nv_store_init(void)
 {
-    nv_store_df_record_v7_t rec_a7;
-    nv_store_df_record_v7_t rec_b7;
-    nv_store_df_record_v6_t rec_a6;
-    nv_store_df_record_v6_t rec_b6;
-    nv_store_df_record_v5_t rec_a5;
-    nv_store_df_record_v5_t rec_b5;
-    nv_store_df_record_v4_t rec_a4;
-    nv_store_df_record_v4_t rec_b4;
-    nv_store_df_record_v3_t rec_a3;
-    nv_store_df_record_v3_t rec_b3;
-    nv_store_df_record_v2_t rec_a2;
-    nv_store_df_record_v2_t rec_b2;
-    nv_store_df_record_v1_t rec_a1;
-    nv_store_df_record_v1_t rec_b1;
+    nv_store_df_record_t rec_a;
+    nv_store_df_record_t rec_b;
 
     s_df_ready = 0U;
     s_df_active_block = NV_STORE_DF_BLOCK_A;
@@ -598,274 +224,56 @@ void nv_store_init(void)
     {
         uint8_t active;
 
-        /* Try V7 first (V2.0 protocol with keys). */
-        nv_store_df_read_block_raw(NV_STORE_DF_BLOCK_A, (uint8_t *)&rec_a7, (uint16_t)sizeof(rec_a7));
-        nv_store_df_read_block_raw(NV_STORE_DF_BLOCK_B, (uint8_t *)&rec_b7, (uint16_t)sizeof(rec_b7));
-        active = nv_store_df_pick_active_block_v7(&rec_a7, &rec_b7);
+        /* Try current format (V7 with V2.0 protocol). */
+        nv_store_df_read_block_raw(NV_STORE_DF_BLOCK_A, (uint8_t *)&rec_a, (uint16_t)sizeof(rec_a));
+        nv_store_df_read_block_raw(NV_STORE_DF_BLOCK_B, (uint8_t *)&rec_b, (uint16_t)sizeof(rec_b));
+        active = nv_store_df_pick_active_block(&rec_a, &rec_b);
         if (active == NV_STORE_DF_BLOCK_A)
         {
             s_df_active_block = NV_STORE_DF_BLOCK_A;
-            s_df_seq = rec_a7.seq;
-            s_fcnt_up = rec_a7.fcnt_up;
-            s_fcnt_down = rec_a7.fcnt_down;
-            s_last_alarm_id = rec_a7.last_alarm_id;
-            s_lora_channel_idx = rec_a7.lora_channel_idx;
-            memcpy(s_pan_id, rec_a7.pan_id, sizeof(s_pan_id));
-            memcpy(s_seri_ed, rec_a7.seri_ed, sizeof(s_seri_ed));
-            s_fire_start_epoch_s = rec_a7.fire_start_epoch_s;
-            s_lora_rssi_threshold_dbm = rec_a7.lora_rssi_threshold_dbm;
-            s_heartbeat_period_s = rec_a7.heartbeat_period_s;
-            s_smoke_sensitivity = rec_a7.smoke_sensitivity;
-            s_heat_sensitivity = rec_a7.heat_sensitivity;
+            s_df_seq = rec_a.seq;
+            s_fcnt_up = rec_a.fcnt_up;
+            s_fcnt_down = rec_a.fcnt_down;
+            s_last_alarm_id = rec_a.last_alarm_id;
+            s_lora_channel_idx = rec_a.lora_channel_idx;
+            memcpy(s_pan_id, rec_a.pan_id, sizeof(s_pan_id));
+            memcpy(s_seri_ed, rec_a.seri_ed, sizeof(s_seri_ed));
+            s_fire_start_epoch_s = rec_a.fire_start_epoch_s;
+            s_lora_rssi_threshold_dbm = rec_a.lora_rssi_threshold_dbm;
+            s_heartbeat_period_s = rec_a.heartbeat_period_s;
+            s_smoke_sensitivity = rec_a.smoke_sensitivity;
+            s_heat_sensitivity = rec_a.heat_sensitivity;
             /* V2.0 protocol fields */
-            memcpy(s_key_k0, rec_a7.key_k0, 16);
-            memcpy(s_key_k1, rec_a7.key_k1, 16);
-            s_msg_id = rec_a7.msg_id & 0x00FFFFFFUL;  /* Mask to 24-bit */
-            s_short_addr = rec_a7.short_addr;
+            memcpy(s_key_k0, rec_a.key_k0, 16);
+            memcpy(s_key_k1, rec_a.key_k1, 16);
+            s_msg_id = rec_a.msg_id & 0x00FFFFFFUL;  /* Mask to 24-bit */
+            s_short_addr = rec_a.short_addr;
             return;
         }
         else if (active == NV_STORE_DF_BLOCK_B)
         {
             s_df_active_block = NV_STORE_DF_BLOCK_B;
-            s_df_seq = rec_b7.seq;
-            s_fcnt_up = rec_b7.fcnt_up;
-            s_fcnt_down = rec_b7.fcnt_down;
-            s_last_alarm_id = rec_b7.last_alarm_id;
-            s_lora_channel_idx = rec_b7.lora_channel_idx;
-            memcpy(s_pan_id, rec_b7.pan_id, sizeof(s_pan_id));
-            memcpy(s_seri_ed, rec_b7.seri_ed, sizeof(s_seri_ed));
-            s_fire_start_epoch_s = rec_b7.fire_start_epoch_s;
-            s_lora_rssi_threshold_dbm = rec_b7.lora_rssi_threshold_dbm;
-            s_heartbeat_period_s = rec_b7.heartbeat_period_s;
-            s_smoke_sensitivity = rec_b7.smoke_sensitivity;
-            s_heat_sensitivity = rec_b7.heat_sensitivity;
+            s_df_seq = rec_b.seq;
+            s_fcnt_up = rec_b.fcnt_up;
+            s_fcnt_down = rec_b.fcnt_down;
+            s_last_alarm_id = rec_b.last_alarm_id;
+            s_lora_channel_idx = rec_b.lora_channel_idx;
+            memcpy(s_pan_id, rec_b.pan_id, sizeof(s_pan_id));
+            memcpy(s_seri_ed, rec_b.seri_ed, sizeof(s_seri_ed));
+            s_fire_start_epoch_s = rec_b.fire_start_epoch_s;
+            s_lora_rssi_threshold_dbm = rec_b.lora_rssi_threshold_dbm;
+            s_heartbeat_period_s = rec_b.heartbeat_period_s;
+            s_smoke_sensitivity = rec_b.smoke_sensitivity;
+            s_heat_sensitivity = rec_b.heat_sensitivity;
             /* V2.0 protocol fields */
-            memcpy(s_key_k0, rec_b7.key_k0, 16);
-            memcpy(s_key_k1, rec_b7.key_k1, 16);
-            s_msg_id = rec_b7.msg_id & 0x00FFFFFFUL;  /* Mask to 24-bit */
-            s_short_addr = rec_b7.short_addr;
+            memcpy(s_key_k0, rec_b.key_k0, 16);
+            memcpy(s_key_k1, rec_b.key_k1, 16);
+            s_msg_id = rec_b.msg_id & 0x00FFFFFFUL;  /* Mask to 24-bit */
+            s_short_addr = rec_b.short_addr;
             return;
         }
 
-        /* Try V6 next. */
-        nv_store_df_read_block_raw(NV_STORE_DF_BLOCK_A, (uint8_t *)&rec_a6, (uint16_t)sizeof(rec_a6));
-        nv_store_df_read_block_raw(NV_STORE_DF_BLOCK_B, (uint8_t *)&rec_b6, (uint16_t)sizeof(rec_b6));
-        active = nv_store_df_pick_active_block_v6(&rec_a6, &rec_b6);
-        if (active == NV_STORE_DF_BLOCK_A)
-        {
-            s_df_active_block = NV_STORE_DF_BLOCK_A;
-            s_df_seq = rec_a6.seq;
-            s_fcnt_up = rec_a6.fcnt_up;
-            s_fcnt_down = rec_a6.fcnt_down;
-            s_last_alarm_id = rec_a6.last_alarm_id;
-            s_lora_channel_idx = rec_a6.lora_channel_idx;
-            memcpy(s_pan_id, rec_a6.pan_id, sizeof(s_pan_id));
-            memcpy(s_seri_ed, rec_a6.seri_ed, sizeof(s_seri_ed));
-            s_fire_start_epoch_s = rec_a6.fire_start_epoch_s;
-            s_lora_rssi_threshold_dbm = rec_a6.lora_rssi_threshold_dbm;
-            s_heartbeat_period_s = rec_a6.heartbeat_period_s;
-            s_smoke_sensitivity = rec_a6.smoke_sensitivity;
-            s_heat_sensitivity = rec_a6.heat_sensitivity;
-            return;
-        }
-        else if (active == NV_STORE_DF_BLOCK_B)
-        {
-            s_df_active_block = NV_STORE_DF_BLOCK_B;
-            s_df_seq = rec_b6.seq;
-            s_fcnt_up = rec_b6.fcnt_up;
-            s_fcnt_down = rec_b6.fcnt_down;
-            s_last_alarm_id = rec_b6.last_alarm_id;
-            s_lora_channel_idx = rec_b6.lora_channel_idx;
-            memcpy(s_pan_id, rec_b6.pan_id, sizeof(s_pan_id));
-            memcpy(s_seri_ed, rec_b6.seri_ed, sizeof(s_seri_ed));
-            s_fire_start_epoch_s = rec_b6.fire_start_epoch_s;
-            s_lora_rssi_threshold_dbm = rec_b6.lora_rssi_threshold_dbm;
-            s_heartbeat_period_s = rec_b6.heartbeat_period_s;
-            s_smoke_sensitivity = rec_b6.smoke_sensitivity;
-            s_heat_sensitivity = rec_b6.heat_sensitivity;
-            return;
-        }
-
-        /* Try V5 first. */
-        nv_store_df_read_block_raw(NV_STORE_DF_BLOCK_A, (uint8_t *)&rec_a5, (uint16_t)sizeof(rec_a5));
-        nv_store_df_read_block_raw(NV_STORE_DF_BLOCK_B, (uint8_t *)&rec_b5, (uint16_t)sizeof(rec_b5));
-        active = nv_store_df_pick_active_block_v5(&rec_a5, &rec_b5);
-        if (active == NV_STORE_DF_BLOCK_A)
-        {
-            s_df_active_block = NV_STORE_DF_BLOCK_A;
-            s_df_seq = rec_a5.seq;
-            s_fcnt_up = rec_a5.fcnt_up;
-            s_fcnt_down = rec_a5.fcnt_down;
-            s_last_alarm_id = rec_a5.last_alarm_id;
-            s_lora_channel_idx = rec_a5.lora_channel_idx;
-            memcpy(s_pan_id, rec_a5.pan_id, sizeof(s_pan_id));
-            memcpy(s_seri_ed, rec_a5.seri_ed, sizeof(s_seri_ed));
-            s_fire_start_epoch_s = rec_a5.fire_start_epoch_s;
-            s_lora_rssi_threshold_dbm = rec_a5.lora_rssi_threshold_dbm;
-            s_heartbeat_period_s = rec_a5.heartbeat_period_s;
-            s_smoke_sensitivity = (uint16_t)rec_a5.smoke_sensitivity;
-            s_heat_sensitivity = (uint16_t)rec_a5.heat_sensitivity;
-            nv_store_df_commit(1U);
-            return;
-        }
-        else if (active == NV_STORE_DF_BLOCK_B)
-        {
-            s_df_active_block = NV_STORE_DF_BLOCK_B;
-            s_df_seq = rec_b5.seq;
-            s_fcnt_up = rec_b5.fcnt_up;
-            s_fcnt_down = rec_b5.fcnt_down;
-            s_last_alarm_id = rec_b5.last_alarm_id;
-            s_lora_channel_idx = rec_b5.lora_channel_idx;
-            memcpy(s_pan_id, rec_b5.pan_id, sizeof(s_pan_id));
-            memcpy(s_seri_ed, rec_b5.seri_ed, sizeof(s_seri_ed));
-            s_fire_start_epoch_s = rec_b5.fire_start_epoch_s;
-            s_lora_rssi_threshold_dbm = rec_b5.lora_rssi_threshold_dbm;
-            s_heartbeat_period_s = rec_b5.heartbeat_period_s;
-            s_smoke_sensitivity = (uint16_t)rec_b5.smoke_sensitivity;
-            s_heat_sensitivity = (uint16_t)rec_b5.heat_sensitivity;
-            nv_store_df_commit(1U);
-            return;
-        }
-
-        /* Try V4 first. */
-        nv_store_df_read_block_raw(NV_STORE_DF_BLOCK_A, (uint8_t *)&rec_a4, (uint16_t)sizeof(rec_a4));
-        nv_store_df_read_block_raw(NV_STORE_DF_BLOCK_B, (uint8_t *)&rec_b4, (uint16_t)sizeof(rec_b4));
-        active = nv_store_df_pick_active_block_v4(&rec_a4, &rec_b4);
-        if (active == NV_STORE_DF_BLOCK_A)
-        {
-            s_df_active_block = NV_STORE_DF_BLOCK_A;
-            s_df_seq = rec_a4.seq;
-            s_fcnt_up = rec_a4.fcnt_up;
-            s_fcnt_down = rec_a4.fcnt_down;
-            s_last_alarm_id = rec_a4.last_alarm_id;
-            s_lora_channel_idx = rec_a4.lora_channel_idx;
-            memcpy(s_pan_id, rec_a4.pan_id, sizeof(s_pan_id));
-            memcpy(s_seri_ed, rec_a4.seri_ed, sizeof(s_seri_ed));
-            s_fire_start_epoch_s = rec_a4.fire_start_epoch_s;
-            s_lora_rssi_threshold_dbm = NV_STORE_CFG_RSSI_UNSET_DBM;
-            s_heartbeat_period_s = NV_STORE_CFG_HB_UNSET_S;
-            s_smoke_sensitivity = NV_STORE_CFG_SENS_UNSET;
-            s_heat_sensitivity = NV_STORE_CFG_SENS_UNSET;
-            nv_store_df_commit(1U);
-            return;
-        }
-        else if (active == NV_STORE_DF_BLOCK_B)
-        {
-            s_df_active_block = NV_STORE_DF_BLOCK_B;
-            s_df_seq = rec_b4.seq;
-            s_fcnt_up = rec_b4.fcnt_up;
-            s_fcnt_down = rec_b4.fcnt_down;
-            s_last_alarm_id = rec_b4.last_alarm_id;
-            s_lora_channel_idx = rec_b4.lora_channel_idx;
-            memcpy(s_pan_id, rec_b4.pan_id, sizeof(s_pan_id));
-            memcpy(s_seri_ed, rec_b4.seri_ed, sizeof(s_seri_ed));
-            s_fire_start_epoch_s = rec_b4.fire_start_epoch_s;
-            s_lora_rssi_threshold_dbm = NV_STORE_CFG_RSSI_UNSET_DBM;
-            s_heartbeat_period_s = NV_STORE_CFG_HB_UNSET_S;
-            s_smoke_sensitivity = NV_STORE_CFG_SENS_UNSET;
-            s_heat_sensitivity = NV_STORE_CFG_SENS_UNSET;
-            nv_store_df_commit(1U);
-            return;
-        }
-
-        /* Try V3 first. */
-        nv_store_df_read_block_raw(NV_STORE_DF_BLOCK_A, (uint8_t *)&rec_a3, (uint16_t)sizeof(rec_a3));
-        nv_store_df_read_block_raw(NV_STORE_DF_BLOCK_B, (uint8_t *)&rec_b3, (uint16_t)sizeof(rec_b3));
-        active = nv_store_df_pick_active_block_v3(&rec_a3, &rec_b3);
-        if (active == NV_STORE_DF_BLOCK_A)
-        {
-            s_df_active_block = NV_STORE_DF_BLOCK_A;
-            s_df_seq = rec_a3.seq;
-            s_fcnt_up = rec_a3.fcnt_up;
-            s_fcnt_down = 1UL;
-            s_last_alarm_id = rec_a3.last_alarm_id;
-            s_lora_channel_idx = rec_a3.lora_channel_idx;
-            memcpy(s_pan_id, rec_a3.pan_id, sizeof(s_pan_id));
-            memcpy(s_seri_ed, rec_a3.seri_ed, sizeof(s_seri_ed));
-            s_fire_start_epoch_s = 0UL;
-            nv_store_df_commit(1U);
-            return;
-        }
-        else if (active == NV_STORE_DF_BLOCK_B)
-        {
-            s_df_active_block = NV_STORE_DF_BLOCK_B;
-            s_df_seq = rec_b3.seq;
-            s_fcnt_up = rec_b3.fcnt_up;
-            s_fcnt_down = 1UL;
-            s_last_alarm_id = rec_b3.last_alarm_id;
-            s_lora_channel_idx = rec_b3.lora_channel_idx;
-            memcpy(s_pan_id, rec_b3.pan_id, sizeof(s_pan_id));
-            memcpy(s_seri_ed, rec_b3.seri_ed, sizeof(s_seri_ed));
-            s_fire_start_epoch_s = 0UL;
-            nv_store_df_commit(1U);
-            return;
-        }
-
-        /* Try V2 first. */
-        nv_store_df_read_block_raw(NV_STORE_DF_BLOCK_A, (uint8_t *)&rec_a2, (uint16_t)sizeof(rec_a2));
-        nv_store_df_read_block_raw(NV_STORE_DF_BLOCK_B, (uint8_t *)&rec_b2, (uint16_t)sizeof(rec_b2));
-        active = nv_store_df_pick_active_block_v2(&rec_a2, &rec_b2);
-        if (active == NV_STORE_DF_BLOCK_A)
-        {
-            s_df_active_block = NV_STORE_DF_BLOCK_A;
-            s_df_seq = rec_a2.seq;
-            s_fcnt_up = rec_a2.fcnt_up;
-            s_fcnt_down = 1UL;
-            s_last_alarm_id = rec_a2.last_alarm_id;
-            s_lora_channel_idx = rec_a2.lora_channel_idx;
-            memset(s_pan_id, 0, sizeof(s_pan_id));
-            memset(s_seri_ed, 0, sizeof(s_seri_ed));
-            s_fire_start_epoch_s = 0UL;
-            nv_store_df_commit(1U);
-            return;
-        }
-        else if (active == NV_STORE_DF_BLOCK_B)
-        {
-            s_df_active_block = NV_STORE_DF_BLOCK_B;
-            s_df_seq = rec_b2.seq;
-            s_fcnt_up = rec_b2.fcnt_up;
-            s_fcnt_down = 1UL;
-            s_last_alarm_id = rec_b2.last_alarm_id;
-            s_lora_channel_idx = rec_b2.lora_channel_idx;
-            memset(s_pan_id, 0, sizeof(s_pan_id));
-            memset(s_seri_ed, 0, sizeof(s_seri_ed));
-            s_fire_start_epoch_s = 0UL;
-            nv_store_df_commit(1U);
-            return;
-        }
-
-        /* Fallback: read V1 and migrate to V2. */
-        nv_store_df_read_block_raw(NV_STORE_DF_BLOCK_A, (uint8_t *)&rec_a1, (uint16_t)sizeof(rec_a1));
-        nv_store_df_read_block_raw(NV_STORE_DF_BLOCK_B, (uint8_t *)&rec_b1, (uint16_t)sizeof(rec_b1));
-        active = nv_store_df_pick_active_block_v1(&rec_a1, &rec_b1);
-        if (active == NV_STORE_DF_BLOCK_A)
-        {
-            s_df_active_block = NV_STORE_DF_BLOCK_A;
-            s_df_seq = rec_a1.seq;
-            s_fcnt_up = rec_a1.fcnt_up;
-            s_fcnt_down = 1UL;
-            s_last_alarm_id = rec_a1.last_alarm_id;
-            s_lora_channel_idx = 0U;
-            memset(s_pan_id, 0, sizeof(s_pan_id));
-            memset(s_seri_ed, 0, sizeof(s_seri_ed));
-            s_fire_start_epoch_s = 0UL;
-            nv_store_df_commit(1U);
-            return;
-        }
-        else if (active == NV_STORE_DF_BLOCK_B)
-        {
-            s_df_active_block = NV_STORE_DF_BLOCK_B;
-            s_df_seq = rec_b1.seq;
-            s_fcnt_up = rec_b1.fcnt_up;
-            s_fcnt_down = 1UL;
-            s_last_alarm_id = rec_b1.last_alarm_id;
-            s_lora_channel_idx = 0U;
-            memset(s_pan_id, 0, sizeof(s_pan_id));
-            memset(s_seri_ed, 0, sizeof(s_seri_ed));
-            s_fire_start_epoch_s = 0UL;
-            nv_store_df_commit(1U);
-            return;
-        }
+        /* No valid current format found; use defaults. */
     }
 
     /* Defaults (first boot or DF unavailable). */

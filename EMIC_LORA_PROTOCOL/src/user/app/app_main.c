@@ -22,6 +22,7 @@
 #include "../hal/hal_systick.h"
 #include "../hal/hal_timer.h"
 #include "../hal/hal_uart.h"
+#include "../hal/hal_wdt.h"
 
 #include "../drv/battery/battery.h"
 
@@ -33,6 +34,15 @@
 #include "../services/smoke_service.h"
 
 #include "../utils/log_control.h"
+#include "../utils/error_stats.h"
+
+
+/* Application constants */
+#define APP_TIME_INVALID_HALFSEC          (0xFFFFFFFFUL)
+#define APP_HALFSEC_PER_SEC               (2UL)
+#define APP_JOIN_MODE_TIMEOUT_HALFSEC     (2UL * 60UL * APP_HALFSEC_PER_SEC)
+#define APP_BATTERY_POLL_PERIOD_HALFSEC   (60UL * APP_HALFSEC_PER_SEC)
+#define APP_RTC_CATCHUP_MAX_TICKS         (64UL)
 
 /**
  * @brief Process RTC half-second tick interrupt poll.
@@ -45,58 +55,103 @@
  */
 static void app_on_rtc_tick_poll(void)
 {
-    static uint32_t s_halfsec_ticks = 0UL;
-    static uint32_t s_join_mode_start_halfsec = 0xFFFFFFFFUL;
+    static uint32_t s_last_processed_halfsec = APP_TIME_INVALID_HALFSEC;
+    static uint32_t s_join_mode_start_halfsec = APP_TIME_INVALID_HALFSEC;
+    static uint32_t s_last_battery_check_halfsec = APP_TIME_INVALID_HALFSEC;
 
-    /* We poll RTCIF and clear it here to create a safe "tick" in main context.
-     * Constant-period is configured to 0.5s in HAL expectations.
-     */
-    if (hal_rtc_int_is_pending())
+    uint32_t now_halfsec = hal_rtc_get_wakeup_count();
+    if (s_last_processed_halfsec == APP_TIME_INVALID_HALFSEC)
     {
-        hal_rtc_int_clear_flag();
+        s_last_processed_halfsec = now_halfsec;
+        (void)hal_rtc_consume_pending_ticks();
+        return;
+    }
+
+    /* Consume pending tick(s) to prevent runaway pending accumulation.
+     * Use the wakeup counter as the authoritative time base to handle stalls.
+     */
+    {
+        uint8_t pending = hal_rtc_consume_pending_ticks();
+        uint32_t now2_halfsec = hal_rtc_get_wakeup_count();
+        uint32_t elapsed = now2_halfsec - s_last_processed_halfsec;
+
+        now_halfsec = now2_halfsec;
+
+        if ((elapsed == 0UL) && (pending == 0U))
+        {
+            return;
+        }
+
+        if ((elapsed == 0UL) && (pending != 0U))
+        {
+            /* Fallback if wakeup counter read races ISR update. */
+            elapsed = (uint32_t)pending;
+        }
+
+        if (elapsed > APP_RTC_CATCHUP_MAX_TICKS)
+        {
+            elapsed = APP_RTC_CATCHUP_MAX_TICKS;
+        }
+
+        s_last_processed_halfsec += elapsed;
+
+        /* Tick-driven services.
+         * - LoRa MAC uses wakeup counter internally; it only needs a "tick happened" nudge.
+         * - Alarm service uses an internal half-second time base; update per elapsed tick.
+         */
         lora_service_on_rtc_tick();
-        alarm_service_on_tick_halfsec();
-
-        /* Status indicators update cadence.
-         * - Offline: derived from GW beacon age (once seen at least once).
-         * - Low battery: evaluated periodically to avoid excessive ADC wake.
-         */
-        s_halfsec_ticks++;
-
-        /* Join Mode timeout: 2 minutes or click to exit.
-         * Time base is RTC half-second tick.
-         */
+        for (; elapsed != 0UL; elapsed--)
         {
-            uint8_t join_mode = device_fsm_is_join_mode_active();
-            if (join_mode != 0U)
+            alarm_service_on_tick_halfsec();
+        }
+    }
+
+    /* Join Mode timeout: 2 minutes or click to exit.
+     * Use wakeup counter so timeout remains accurate even if main-loop stalls.
+     */
+    {
+        uint8_t join_mode = device_fsm_is_join_mode_active();
+        if (join_mode != 0U)
+        {
+            if (s_join_mode_start_halfsec == APP_TIME_INVALID_HALFSEC)
             {
-                if (s_join_mode_start_halfsec == 0xFFFFFFFFUL)
-                {
-                    s_join_mode_start_halfsec = s_halfsec_ticks;
-                }
-                else if ((s_halfsec_ticks - s_join_mode_start_halfsec) >= 240UL)
-                {
-                    (void)device_fsm_post_event(DEVICE_EVENT_JOIN_MODE_TIMEOUT);
-                    /* Prevent repeated posting if loop stalls for any reason. */
-                    s_join_mode_start_halfsec = 0xFFFFFFFFUL;
-                }
+                s_join_mode_start_halfsec = now_halfsec;
             }
-            else
+            else if ((now_halfsec - s_join_mode_start_halfsec) >= APP_JOIN_MODE_TIMEOUT_HALFSEC)
             {
-                s_join_mode_start_halfsec = 0xFFFFFFFFUL;
+                (void)device_fsm_post_event(DEVICE_EVENT_JOIN_MODE_TIMEOUT);
+                /* Prevent repeated posting if loop stalls for any reason. */
+                s_join_mode_start_halfsec = APP_TIME_INVALID_HALFSEC;
             }
         }
-
+        else
         {
-            uint32_t age_s = lora_service_get_gw_age_s();
-            uint8_t offline = (uint8_t)((age_s != 0xFFFFFFFFUL) && (age_s > (uint32_t)APP_OFFLINE_TIMEOUT_S)) ? 1U : 0U;
-            alarm_service_set_offline(offline);
+            s_join_mode_start_halfsec = APP_TIME_INVALID_HALFSEC;
+        }
+    }
+
+    /* Offline indicator: derived from GW beacon age (once seen at least once). */
+    {
+        uint32_t age_s = lora_service_get_gw_age_s();
+        uint8_t offline = (uint8_t)((age_s != APP_TIME_INVALID_HALFSEC) && (age_s > (uint32_t)APP_OFFLINE_TIMEOUT_S)) ? 1U : 0U;
+        alarm_service_set_offline(offline);
+    }
+
+    /* Low battery: evaluated periodically to avoid excessive ADC wake. */
+    {
+        if (s_last_battery_check_halfsec == APP_TIME_INVALID_HALFSEC)
+        {
+            s_last_battery_check_halfsec = now_halfsec;
         }
 
-        if ((s_halfsec_ticks % 120UL) == 0UL)
+        if ((now_halfsec - s_last_battery_check_halfsec) >= APP_BATTERY_POLL_PERIOD_HALFSEC)
         {
-            uint16_t mv = battery_get_mv();
-            uint8_t low = (uint8_t)((mv != 0U) && (mv < (uint16_t)APP_BATTERY_LOW_MV)) ? 1U : 0U;
+            uint16_t mv;
+            uint8_t low;
+
+            s_last_battery_check_halfsec = now_halfsec;
+            mv = battery_get_mv();
+            low = (uint8_t)((mv != 0U) && (mv < (uint16_t)APP_BATTERY_LOW_MV)) ? 1U : 0U;
             alarm_service_set_low_battery(low);
         }
     }
@@ -294,13 +349,20 @@ static void app_collect_and_post_events(void)
 
 void app_init(void)
 {
+    /* Initialize HAL modules */
     hal_gpio_init();
     hal_timer_init();
     hal_rtc_init();
     hal_uart_init();
+    hal_wdt_init();
 
+    /* Initialize logging system (UART-based) */
     log_set_level(LOG_LEVEL_DEBUG);
 
+    /* Initialize error statistics tracking */
+    error_stats_init();
+
+    /* Initialize services */
     power_service_init();
     alarm_service_init();
     button_service_init();
@@ -308,6 +370,7 @@ void app_init(void)
     lora_service_init();
     nv_store_service_init();
 
+    /* Initialize device FSM */
     device_fsm_init();
 }
 
@@ -315,10 +378,13 @@ void app_run_forever(void)
 {
     for (;;)
     {
+        /* Refresh watchdog timer to prevent timeout */
+        hal_wdt_refresh();
+
         /* Poll for RTC tick */
         app_on_rtc_tick_poll();
 
-        /* Run state machines (button/link/alarm FSMs update internal state) */
+        /* Run services */
         button_service_run();
         lora_service_run();
         alarm_service_run();

@@ -180,6 +180,21 @@ void hal_rtc_int_clear_flag(void)
     RTCIF = 0U;
 }
 
+uint8_t hal_rtc_consume_pending_ticks(void)
+{
+    uint8_t pending;
+
+    /* Consume all pending ticks, atomically w.r.t ISR updates */
+    DI();
+    pending = g_rtc_tick_pending;
+    g_rtc_tick_pending = 0U;
+    EI();
+
+    /* Best-effort clear (harmless if already cleared by hardware/ISR) */
+    RTCIF = 0U;
+    return pending;
+}
+
 /* ===================================================================
  * Time Conversion & Utility Functions
  * =================================================================== */

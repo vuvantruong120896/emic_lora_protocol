@@ -4,9 +4,9 @@ Mục tiêu: cho cái nhìn **trực quan** về quan hệ phụ thuộc và cá
 
 > **Tham chiếu tài liệu chuẩn:**
 >
-> - Kiến trúc layer: xem [emic_lora_stack_architecture.md](emic_lora_stack_architecture.md) (Mục 2-4: PHY/MAC/Protocol layers)
-> - Định dạng frame & bảo mật: xem [emic_lora_protocol_frame_spec.md](emic_lora_protocol_frame_spec.md) (Mục 8-10: AES-128-CCM, anti-replay, 15 message types)
-> - **Terminology:** "MAC Layer" (chứ không "Link Layer"), **"AES-128-CCM"** (Protocol layer encryption), **"msg_id"** (Protocol anti-replay counter, window=1)
+> - Kiến trúc layer: xem [emic_lora_stack_architecture.md](emic_lora_stack_architecture.md) (Mục 2-4: Protocol/MAC/PHY layers)
+> - Định dạng frame & bảo mật: xem [emic_lora_protocol_frame_spec.md](emic_lora_protocol_frame_spec.md) (Mục 4-10: 11B header, AES-128-CCM, anti-replay, 19 message types)
+> - **Terminology:** "MAC Layer" (không "Link Layer"), **"AES-128-CCM"** (Protocol layer encryption), **"msg_id"** (Protocol anti-replay counter, window=1)
 
 ---
 
@@ -14,127 +14,183 @@ Mục tiêu: cho cái nhìn **trực quan** về quan hệ phụ thuộc và cá
 
 ### 1.1 Sơ đồ phụ thuộc (Dependency diagram)
 
+**Cách đọc sơ đồ:** thể hiện **code dependency** (ai `#include` và gọi ai), KHÔNG phải data flow.
+
 ```mermaid
-flowchart TD
-  subgraph APP[Layer 7: app]
-    A1["app_main.c"]
+flowchart TB
+  subgraph L1["Layer 1: Application"]
+    A[app_main.c / device_fsm]
   end
 
-  subgraph SVC[Layer 6: services]
-    S1["alarm_service"]
-    S2["button_service"]
-    S3["smoke_service"]
-    S4["lora_service"]
-    S5["nv_store_service"]
-    S6["power_service"]
+  S0[lora_service]
+
+  subgraph L2["Layer 2: Services"]
+    Sx2[alarm_service]
+    Sx3[button_service]
+    Sx4[nv_store_service]
+    Sx5[smoke_service]
   end
 
-  subgraph LINK[Layer 5: MAC]
-    L1["lora_mac"]
+  subgraph L4["Layer 4: MAC ⭐"]
+    M[lora_mac]
   end
 
-  subgraph PROTO[Layer 4: protocol]
-    P1["emic_lora_protocol (AES-128-CCM)"]
-    P2["emic_lora_crypto + nonce_builder"]
+  subgraph L3["Layer 3: Protocol ⭐"]
+    P[emic_lora_protocol]
+    PC[emic_lora_crypto]
   end
 
-  subgraph RADIO[Layer 3a: radio]
-    R1["radio_if (internal)"]
-    R2["sx1262 (internal)"]
+  subgraph L5["Layer 5: PHY ⭐"]
+    PH[radio_if / sx1262]
   end
 
-  subgraph DRV[Layer 3b: drv]
-    D1["buzzer"]
-    D2["led"]
-    D3["button"]
-    D4["smoke_sensor"]
-    D5["nv_store"]
+  subgraph L6["Layer 6: Drivers"]
+    D1[nv_store]
+    D2[smoke_sensor]
+    D3[button]
+    D4[led]
+    D5[buzzer]
   end
 
-  subgraph HAL[Layer 2: hal]
-    H1["hal_gpio"]
-    H2["hal_spi"]
-    H3["hal_rtc"]
-    H4["hal_timer - TAU0_0 PWM"]
-    H5["hal_systick - ITL (FSXP) ~1ms"]
+  subgraph L7["Layer 7: HAL + smc_gen"]
+    H1[hal_rtc]
+    H2[hal_spi]
+    H3[hal_gpio]
+    H4[hal_timer]
+    H5[hal_systick]
+    G1[Config_RTC ISR]
+    G2[Config_INTC ISR DIO1]
+    G3[Config_TAU0_0]
+    G4[Config_ITL000_ITL001_ITL012_ITL013]
   end
 
-  subgraph SMC[Layer 1: smc_gen]
-    G1["Config_RTC ISR"]
-    G2["Config_INTC ISR DIO1"]
-    G3["Config_TAU0_0"]
-    G4["Config_ITL000_ITL001_ITL012_ITL013"]
-  end
-
-  A1 --> S1
-  A1 --> S2
-  A1 --> S3
-  A1 --> S4
-  A1 --> S5
-  A1 --> S6
-
-  S4 --> L1
-  S1 --> D1
-  S1 --> D2
-  S2 --> D3
-  S3 --> D4
-  S5 --> D5
-  S6 --> L1
-  S6 --> S1
-
-  L1 --> R1
-  L1 --> P1
-  L1 --> D5
-  P1 --> P2
-
-  R1 --> R2
-  R2 --> H2
-  R2 --> H1
-  R2 --> H5
-
+  A --> S0
+  A --> Sx2
+  A --> Sx3
+  A --> Sx4
+  A --> Sx5
+  
+  S0 --> M
+  M --> P
+  M --> PH
+  P --> PC
+  
+  PH --> H1
+  PH --> H2
+  PH --> H3
+  PH --> H5
+  
+  M --> H1
+  
+  Sx2 --> D4
+  Sx2 --> D5
+  Sx3 --> D3
+  Sx4 --> D1
+  Sx5 --> D2
+  
   D1 --> H1
-  D1 --> H4
-  D2 --> H1
-  D3 --> H1
-  D4 --> H1
-  D5 --> H3
-
-  H1 --> G2
+  D2 --> H3
+  D3 --> H3
+  D4 --> H3
+  D5 --> H4
+  
+  H1 --> G1
   H2 --> G2
-  H3 --> G1
+  H3 --> G2
   H4 --> G3
   H5 --> G4
+
+  style L3 fill:#e1f5e1
+  style L4 fill:#e1f5e1
+  style L5 fill:#e1f5e1
 ```
 
-### 1.2 Dependency rules (tuân thủ 1 chiều)
+**Chú thích:** 
 
-| Layer    | Gọi                 | Được gọi bởi |
-| -------- | -------------------- | ----------------- |
-| app      | services             | main()            |
-| services | MAC, drv, hal        | app               |
-| MAC      | radio, protocol, drv | services          |
-| protocol | hal/utils (crypto)   | MAC               |
-| radio    | drv, hal             | MAC (internal)    |
-| drv      | hal                  | services, radio   |
-| hal      | smc_gen              | (all)             |
-| smc_gen  | (hw registers)       | hal               |
+- **⭐** = 3 tầng core của EMIC LoRa Stack (Protocol/MAC/PHY)
+- Sơ đồ thể hiện **code dependency** (compile-time `#include` và function call)
+- **lora_service → MAC**: lora_service gọi lora_mac API
+- **MAC → Protocol**: MAC gọi emic_lora_protocol_build/parse để encrypt/decrypt
+- **MAC → PHY**: MAC gọi radio_if API
+- **Data flow** (TX/RX runtime) khác với dependency - xem mục 1.3
 
-Ghi chú:
+---
 
-- Luồng phụ thuộc "đúng hướng": `app → services → MAC → radio → drv → hal → smc_gen`.
-- **MAC layer** ("Link" layer cũ, được chuẩn hóa thành "MAC" theo IEEE 802.15.4) chịu trách nhiệm: frame format (10B header + payload + 4B MIC), ACK + retry, link reliability (xem [emic_lora_stack_architecture.md](emic_lora_stack_architecture.md) Mục 3).
-- **Protocol layer** chịu trách nhiệm: AES-128-CCM encryption/decryption, anti-replay check (msg_id window=1, strictly monotonic), nonce construction (13 bytes), message type handling cho 15 types (xem [emic_lora_stack_architecture.md](emic_lora_stack_architecture.md) Mục 4).
-- **Configuration separation**: `system_config.h` chứa RF/MAC/protocol constants dùng bởi lower layers (radio, MAC, protocol); `app_config.h` chứa application-level constants dùng bởi app và services. Lower layers **KHÔNG** include `app_config.h` để tuân thủ strict layering.
-- `protocol` là thư viện logic (build/parse frame + crypto) không chạm phần cứng.
+### 1.2 Layer mapping table
+
+| Layer                       | Module chính                                                                                           | Trách nhiệm                                | Gọi xuống (code dependency) |
+| --------------------------- | ------------------------------------------------------------------------------------------------------- | -------------------------------------------- | ------------------ |
+| **L1: Application**   | `app_main.c`, `device_fsm`                                                                          | Main loop, state machine                     | L2, L2a           |
+| **L2a: lora_service** | `lora_service`                                                                                        | Stack entrypoint (TX/RX orchestration)       | **L4** (MAC)      |
+| **L2: Services**      | `power_service`, `alarm_service`, `button_service`, `nv_store_service`, `smoke_service` | Business logic, driver facade                | L6                 |
+| **L3: Protocol** ⭐   | `emic_lora_protocol`, `emic_lora_crypto`, `nonce_builder`                                         | AES-128-CCM, anti-replay, message types      | utils (crypto)     |
+| **L4: MAC** ⭐        | `lora_mac`                                                                                            | Frame build/parse, ACK/Retry, channel access | **L3, L5**        |
+| **L5: PHY** ⭐        | `radio_if`, `sx1262`                                                                                | LoRa modulation, RF config, RX/TX timing     | L7 (HAL)           |
+| **L6: Drivers**       | `nv_store`, `smoke_sensor`, `button`, `led`, `buzzer`                                         | Peripheral drivers                           | L7                 |
+| **L7: HAL + smc_gen** | `hal_rtc`, `hal_spi`, `hal_gpio`, `hal_timer`, `hal_systick`, `Config_*`                    | Hardware abstraction + ISR config            | Hardware registers |
+
+**⭐ = EMIC LoRa Stack** (3 tầng core: Protocol/MAC/PHY)
+
+**Chú ý:** 
+- Cột "Gọi xuống" thể hiện **code dependency** (ai include và gọi ai)
+- **MAC gọi Protocol** để build/parse frame (không phải Protocol gọi MAC)
+- **Data flow** (TX/RX) khác với code dependency - xem mục 1.3 bên dưới
+
+---
+
+### 1.3 Dependency rules (actual code dependencies - ai include/gọi ai)
+
+| Module/Layer       | Include/Gọi xuống | Được gọi bởi (từ trên xuống) |
+| ------------------ | ------------------- | ----------------- |
+| app                | services            | main()            |
+| lora_service       | **MAC**           | app               |
+| services (khác)    | drv                 | app               |
+| **MAC**      | **protocol**, PHY   | lora_service      |
+| **protocol** | utils (crypto)      | MAC               |
+| **PHY**      | hal                 | MAC               |
+| drv                | hal                 | services          |
+| hal                | smc_gen             | PHY, drv          |
+| smc_gen            | (hw registers)      | hal               |
+
+**⚠️ Lưu ý quan trọng: Phân biệt giữa Code Dependency và Data Flow:**
+
+- **Code dependency (dependency direction):** Ai `#include` và **gọi** ai
+  - **lora_service → MAC → Protocol** (MAC gọi protocol để build/parse frame)
+  - **MAC → PHY** (MAC gọi radio API)
+  
+- **Data flow (theo [emic_lora_stack_architecture.md](emic_lora_stack_architecture.md) Mục 4):**
+  - **TX path (uplink):** Application → **Protocol** (encrypt) → **MAC** (frame) → **PHY** (RF bits) → Air
+  - **RX path (downlink):** Air → **PHY** → **MAC** (parse) → **Protocol** (decrypt) → Application
+  
+
+**Implementation notes:**
+- MAC layer owns the frame structure và gọi Protocol layer API (`emic_lora_protocol_build()`, `emic_lora_protocol_parse()`) để encrypt/decrypt payload
+- Data flow đi từ Application xuống PHY (TX) và từ PHY lên Application (RX), nhưng **code dependency** là MAC gọi Protocol, không phải ngược lại
+- **EMIC LoRa Stack 3 lớp chính** (theo [emic_lora_stack_architecture.md](emic_lora_stack_architecture.md)):
+  - **Protocol layer:** Message types + payload semantics; AES-128-CCM (nonce/AAD/MIC); anti-replay `msg_id` (window=1, strictly monotonic)
+  - **MAC layer:** Frame build/parse + addressing; ACK/Retry; channel access (CAD/CSMA)
+  - **PHY layer:** LoRa modulation + RF config; RX/TX timing; CRC
+- **Frame format** (theo [emic_lora_protocol_frame_spec.md](emic_lora_protocol_frame_spec.md) Section 4):
+  - **11-byte header** (AAD) + 0-49 byte payload (encrypted) + 4-byte MIC
+  - Header plaintext (không mã hóa), payload được AES-128-CCM encrypt bởi Protocol layer
+- **Firmware modules** (không phải stack layers):
+  - `app`, `services`, `drv`, `hal`, `smc_gen` là firmware organization
+  - PHY layer được implement qua `radio_if` + `sx1262` driver (internal)
+- **Configuration separation**: `system_config.h` (RF/MAC/protocol constants) vs `app_config.h` (application constants). Lower layers **KHÔNG** include `app_config.h`.
 - Không được gọi "ngược lên" (ví dụ `hal` không gọi `app`).
 
 ---
 
 ## 2) Các điểm giao tiếp quan trọng (cross-layer API)
 
-### 2.1 App ↔ Services ↔ MAC
+### 2.1 App ↔ Services ↔ MAC (Stack entrypoint)
 
-**Tầng lora_service (Layer 6)** là facade service bọc lấy lora_mac layer, cung cấp API sạch cho app và các service khác. Nó consolidate tất cả LoRa network operations (heartbeat, join, uplink, event polling) thành một single public interface.
+**Module lora_service** là facade service bọc lấy **EMIC LoRa Stack** (MAC + PHY), cung cấp API sạch cho app và các service khác. 
+
+**⚠️ Code dependency thực tế:**
+- `lora_service` gọi **MAC layer** (`lora_mac`), không trực tiếp gọi Protocol
+- **MAC layer** sở hữu frame structure và gọi **Protocol layer** API (`emic_lora_protocol_build()`, `emic_lora_protocol_parse()`) khi cần encrypt/decrypt
+- Điều này đảm bảo MAC có toàn quyền kiểm soát frame format và timing, trong khi Protocol chỉ lo crypto + message semantics
 
 - `app_main.c`:
 
@@ -148,16 +204,30 @@ Các trigger từ `device_fsm` xuống lora_service:
 - Local alarm ON: `lora_service_notify_alarm()` (smoke detected / test-hold)
 - Local alarm OFF: `lora_service_notify_alarm_cleared()` (smoke cleared / test release)
 
-Các event từ `lora_service_poll_event()` (hiện tại, xem [emic_lora_protocol_frame_spec.md](emic_lora_protocol_frame_spec.md) Mục 9 cho đầy đủ 15 message types):
+Các event từ `lora_service_poll_event()` (xem [emic_lora_protocol_frame_spec.md](emic_lora_protocol_frame_spec.md) Section 9 cho đầy đủ 19 message types):
+
+**Network events:**
 
 - `HEARTBEAT_DUE`
-- `REMOTE_ALARM` (Type 0x03: ALARM)
-- `REMOTE_ALARM_CLEAR` (Type 0x04: ALARM_CLEAR)
-- `REMOTE_SILENCE` (Type 0x05: SIREN_SILENCE)
-- `GW_LOST`
 - `JOIN_ACCEPTED` (Type 0x02: JOIN_ACCEPT)
 - `ENTER_OPERATION` (Type 0x06: SET_OPERATIONAL)
 - `LEAVE_NETWORK` (Type 0x0B: LEAVE_NETWORK)
+- `GW_LOST`
+
+**Alarm events (from GW):**
+
+- `REMOTE_ALARM` (Type 0x03: ALARM)
+- `REMOTE_ALARM_CLEAR` (Type 0x04: ALARM_CLEAR)
+- `REMOTE_SILENCE` (Type 0x05: SIREN_SILENCE)
+
+**Configuration/test events:**
+
+- `CFG_SET` (Type 0x07: CFG_SET)
+- `CFG_GET` (Type 0x08: CFG_GET)
+- `TEST_ED` (Type 0x09: TEST_ED)
+- `TIME_SYNC` (Type 0x0A: TIME_SYNC)
+
+**Note:** Frame spec định nghĩa 19 types; các types khác (JOIN_REQUEST, HEARTBEAT, FAULT, GW_*, BEACON_*) được xử lý internal bởi MAC/Protocol layers.
 
 ```mermaid
 sequenceDiagram
@@ -185,9 +255,9 @@ sequenceDiagram
   end
 ```
 
-### 2.1.1 Button Service (Layer 6 input facade)
+### 2.1.1 Button Service (Firmware module)
 
-**Tầng button_service (Layer 6)** là facade service bọc lấy drv/button driver, cung cấp API sạch cho app.
+**Module button_service** là facade service bọc lấy drv/button driver, cung cấp API sạch cho app.
 
 - `app_main.c`:
 
@@ -199,8 +269,8 @@ sequenceDiagram
 ```mermaid
 sequenceDiagram
   participant APP as app_main
-  participant BTN as button_service (Layer 6)
-  participant DRV as drv/button (Layer 3b)
+  participant BTN as button_service
+  participant DRV as drv/button
 
   loop main loop
     APP->>BTN: button_service_run()
@@ -221,9 +291,9 @@ sequenceDiagram
   end
 ```
 
-### 2.1.2 NV Store Service (Layer 6 persistence facade)
+### 2.1.2 NV Store Service (Firmware module)
 
-**Tầng nv_store_service (Layer 6)** là facade service bọc lấy drv/store/nv_store driver, cung cấp API sạch cho app.
+**Module nv_store_service** là facade service bọc lấy drv/store/nv_store driver, cung cấp API sạch cho app.
 
 - `app_main.c`:
 
@@ -235,8 +305,8 @@ sequenceDiagram
 ```mermaid
 sequenceDiagram
   participant APP as app_main / FSM
-  participant NV as nv_store_service (Layer 6)
-  participant DRV as drv/store/nv_store (Layer 3b)
+  participant NV as nv_store_service
+  participant DRV as drv/store/nv_store
 
   APP->>NV: nv_store_service_init()
   NV->>DRV: nv_store_init()
@@ -249,7 +319,7 @@ sequenceDiagram
 
     APP->>NV: nv_store_service_set_fcnt_up(new_fcnt)
     NV->>DRV: nv_store_set_fcnt_up()
-    
+  
     alt after critical state change
       APP->>NV: nv_store_service_flush()
       NV->>DRV: nv_store_flush()
@@ -258,11 +328,31 @@ sequenceDiagram
   end
 ```
 
-### 2.2 MAC ↔ Radio
+### 2.2 MAC ↔ Protocol
+
+**⚠️ Code dependency:** **MAC layer gọi Protocol layer**, không phải ngược lại.
+
+- **TX (uplink):** MAC nhận request từ app/service → gọi `emic_lora_protocol_build()` để encrypt payload → đóng gói frame → send qua PHY
+- **RX (downlink):** MAC nhận frame từ PHY → parse header → gọi `emic_lora_protocol_parse()` để verify MIC + decrypt payload → forward event lên app
+
+**Protocol layer API (được MAC gọi):**
+
+- `emic_lora_protocol_build()` - MAC gọi để encrypt payload và build frame
+- `emic_lora_protocol_parse()` - MAC gọi để parse và decrypt received frame
+
+**Data flow perspective** (theo [emic_lora_stack_architecture.md](emic_lora_stack_architecture.md)):
+- TX: Application data → Protocol (encrypt) → MAC (frame) → PHY → RF
+- RX: RF → PHY → MAC (parse) → Protocol (decrypt) → Application
+
+Nhưng **implementation**: MAC owns frame structure và orchestrates toàn bộ quá trình, gọi Protocol khi cần crypto operations.
+
+---
+
+### 2.3 MAC ↔ PHY (Radio)
 
 Ghi chú: phần này là **internal detail** của MAC layer.
 
-- MAC yêu cầu radio thực hiện:
+- MAC yêu cầu PHY (radio) thực hiện:
 
   - `radio_request_cad()` (CAD paging)
   - `radio_request_rx()` (RX window sau CAD)
@@ -296,9 +386,9 @@ sequenceDiagram
   end
 ```
 
-### 2.3 Radio ↔ SX1262 driver ↔ HAL
+### 2.4 PHY (Radio) ↔ SX1262 driver ↔ HAL
 
-Ghi chú: phần này là **internal detail** của radio layer.
+Ghi chú: phần này là **internal detail** của PHY layer.
 
 - `radio_if.c` giữ ISR "mỏng":
 
@@ -446,5 +536,6 @@ flowchart TD
 
 Ghi chú cập nhật:
 
-- `power_service` không gọi trực tiếp `radio_if` hay `lora_mac`; thay vào đó dùng `lora_service_is_busy()` và `lora_service_sleep()` để duy trì strict layer separation (xem [emic_lora_stack_architecture.md](emic_lora_stack_architecture.md) Mục 3: MAC Layer ACK + retry).
+- `power_service` không gọi trực tiếp `radio_if` hay `lora_mac`; thay vào đó dùng `lora_service_is_busy()` và `lora_service_sleep()` để duy trì strict layer separation.
 - CAD scan period và RX/TX windows được định cấu hình qua `system_config.h` (SYSTEM_CAD_SCAN_PERIOD_MS, SYSTEM_RX_AFTER_CAD_MS, SYSTEM_RX_AFTER_TX_MS) chứ không phải `app_config.h`.
+- Xem [emic_lora_stack_architecture.md](emic_lora_stack_architecture.md) Mục 3 cho trách nhiệm của Protocol/MAC/PHY layers.

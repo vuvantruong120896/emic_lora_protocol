@@ -17,6 +17,7 @@
 
 /* TinyCrypt for AES-128-CCM */
 #include "../tinycrypt/include/tinycrypt_ccm_mode.h"
+#include "../tinycrypt/include/tinycrypt_cmac_mode.h"
 #include "../tinycrypt/include/tinycrypt_aes.h"
 #include "../tinycrypt/include/tinycrypt_constants.h"
 
@@ -184,3 +185,52 @@ uint8_t emic_lora_aes_ccm_decrypt(const uint8_t key[16],
     return (result == TC_CRYPTO_SUCCESS) ? 1 : 0;
 }
 
+/**
+ * @brief Derive K1 from K0 using AES-CMAC (V2.0 key management).
+ *
+ * @note K1 = AES-CMAC(K0, join_nonce || net_id)
+ *       Uses TinyCrypt AES-CMAC for key derivation.
+ */
+uint8_t emic_lora_derive_k1(const uint8_t k0[16],
+                             const uint8_t join_nonce[6],
+                             const uint8_t net_id[6],
+                             uint8_t k1_out[16])
+{
+    struct tc_aes_key_sched_struct sched;
+    struct tc_cmac_struct_t cmac;
+    uint8_t input[12]; /* join_nonce(6) + net_id(6) */
+    int result;
+
+    /* Validate inputs */
+    if (k0 == NULL || join_nonce == NULL || net_id == NULL || k1_out == NULL)
+    {
+        return 0;
+    }
+
+    /* Prepare input: join_nonce || net_id */
+    memcpy(&input[0], join_nonce, 6);
+    memcpy(&input[6], net_id, 6);
+
+    /* Initialize AES key schedule with K0 */
+    if (tc_aes128_set_encrypt_key(&sched, k0) != TC_CRYPTO_SUCCESS)
+    {
+        return 0;
+    }
+
+    /* Initialize CMAC context */
+    if (tc_cmac_setup(&cmac, (uint8_t *)k0, &sched) != TC_CRYPTO_SUCCESS)
+    {
+        return 0;
+    }
+
+    /* Compute CMAC over input */
+    if (tc_cmac_update(&cmac, input, 12) != TC_CRYPTO_SUCCESS)
+    {
+        return 0;
+    }
+
+    /* Finalize CMAC to generate K1 (16 bytes) */
+    result = tc_cmac_final(k1_out, &cmac);
+
+    return (result == TC_CRYPTO_SUCCESS) ? 1 : 0;
+}

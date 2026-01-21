@@ -18,51 +18,45 @@
 ***********************************************************************************************************************/
 
 /***********************************************************************************************************************
-* File Name        : r_smc_entry.h
-* Version          : 1.0.40
+* File Name        : Config_WDT_user.c
+* Component Version: 1.5.0
 * Device(s)        : R7F100GGGxFB
-* Description      : SMC platform header file..
+* Description      : This file implements device driver for Config_WDT.
 ***********************************************************************************************************************/
-
 /***********************************************************************************************************************
 Includes
 ***********************************************************************************************************************/
 #include "r_cg_macrodriver.h"
-#include "../Config_PORT/Config_PORT.h"
-#include "../Config_INTC/Config_INTC.h"
-#include "../Config_RTC/Config_RTC.h"
-#include "../Config_WDT/Config_WDT.h"
-#include "../Config_ITL000_ITL001_ITL012_ITL013/Config_ITL000_ITL001_ITL012_ITL013.h"
-#include "../Config_CSI20/Config_CSI20.h"
-#include "../Config_TAU0_0/Config_TAU0_0.h"
-#include "../Config_UARTA1/Config_UARTA1.h"
-#include "../r_pincfg/Pin.h"
-#include "r_cg_sau_common.h"
-#include "r_cg_uarta_common.h"
-#include "r_cg_tau_common.h"
-#include "r_cg_itl_common.h"
-#include "r_cg_rtc_common.h"
 #include "r_cg_userdefine.h"
-
-#ifndef SMC_ENTRY_H
-#define SMC_ENTRY_H
-
-/***********************************************************************************************************************
-Macro definitions (Register bit)
-***********************************************************************************************************************/
-
-/***********************************************************************************************************************
-Macro definitions
-***********************************************************************************************************************/
-
-/***********************************************************************************************************************
-Typedef definitions
-***********************************************************************************************************************/
-
-/***********************************************************************************************************************
-Global functions
-***********************************************************************************************************************/
-/* Start user code for function. Do not edit comment generated here */
+#include "Config_WDT.h"
+/* Start user code for include. Do not edit comment generated here */
 /* End user code. Do not edit comment generated here */
-#endif
+
+/***********************************************************************************************************************
+Pragma directive
+***********************************************************************************************************************/
+#pragma interrupt r_Config_WDT_interrupt(vect=INTWDTI)
+/* Start user code for pragma. Do not edit comment generated here */
+/* End user code. Do not edit comment generated here */
+
+/***********************************************************************************************************************
+Global variables and functions
+***********************************************************************************************************************/
+/* Start user code for global. Do not edit comment generated here */
+/* End user code. Do not edit comment generated here */
+
+/***********************************************************************************************************************
+* Function Name: R_Config_WDT_Create_UserInit
+* Description  : This function adds user code after initializing the watchdog timer.
+* Arguments    : None
+* Return Value : None
+***********************************************************************************************************************/
+void R_Config_WDT_Create_UserInit(void)
+{
+    /* Start user code for user init. Do not edit comment generated here */
+    /* End user code. Do not edit comment generated here */
+}
+
+/* Start user code for adding. Do not edit comment generated here */
+/* End user code. Do not edit comment generated here */
 

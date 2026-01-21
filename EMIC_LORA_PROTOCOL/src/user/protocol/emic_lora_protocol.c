@@ -14,6 +14,8 @@
 #include <stddef.h>
 
 #include "emic_lora_crypto.h"
+#include "../utils/error_codes.h"
+#include "../utils/error_stats.h"
 
 /* ============================================================================
  * Anti-replay (window=1)
@@ -64,6 +66,8 @@ uint8_t emic_lora_antireplay_check_and_update(uint16_t src,
                 s_antireplay[i].last_msg_id = msg_id;
                 return 1U;
             }
+            /* Replay detected */
+            error_stats_record(ERR_REPLAY);
             return 0U;
         }
     }
@@ -118,7 +122,7 @@ uint8_t emic_lora_build_frame(const uint8_t ctx6[6],
         return 0;
     }
 
-    /* Validation rules from emic_lora_protocol_frame_spec.md */
+    /* Validation rules from emic_lora_wire_format_specification.md */
     if ((flags & EMIC_LORA_FLAG_ENC) == 0U)
     {
         return 0;
@@ -242,7 +246,7 @@ uint8_t emic_lora_parse_frame(const uint8_t ctx6[6],
     /* Byte 1: flags */
     flags = in[1];
 
-    /* Validation rules from emic_lora_protocol_frame_spec.md */
+    /* Validation rules from emic_lora_wire_format_specification.md */
     if ((flags & 0xE0U) != 0U)
     {
         return 0;
@@ -278,12 +282,14 @@ uint8_t emic_lora_parse_frame(const uint8_t ctx6[6],
     /* Validate payload length */
     if (len > EMIC_LORA_MAX_PAYLOAD_SIZE)
     {
+        error_stats_record(ERR_INVALID_LENGTH);
         return 0;
     }
 
     /* Validate total frame length: 10 + len + 4 */
     if (in_len != (uint8_t)(10 + len + 4))
     {
+        error_stats_record(ERR_FRAME_MALFORMED);
         return 0;
     }
 
@@ -306,6 +312,7 @@ uint8_t emic_lora_parse_frame(const uint8_t ctx6[6],
                                     out->payload))
     {
         /* MIC verification failed - discard silently */
+        error_stats_record(ERR_MIC_FAIL);
         memset(out, 0, sizeof(*out));
         out->mic_valid = 0;
         return 0;

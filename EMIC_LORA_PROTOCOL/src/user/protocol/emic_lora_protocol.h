@@ -10,7 +10,7 @@
  * - MIC: 4-byte AES-CCM authentication tag protecting header (AAD) + payload
  * - Nonce: 13 bytes = ctx6(6) + src(2) + msg_id(3) + dir(1) + key_id(1)
  *
- * @see emic_lora_protocol_frame_spec.md for detailed wire format
+ * @see emic_lora_wire_format_specification.md for detailed wire format
  * @see emic_lora_stack_architecture.md for layer responsibilities
  *
  * @author EMIC Project
@@ -57,7 +57,10 @@ typedef enum
     EMIC_LORA_TYPE_CFG_SET         = 0x10,  /* GW → ED: Set configuration */
     EMIC_LORA_TYPE_CFG_RSP         = 0x11,  /* ED → GW: Configuration response */
     EMIC_LORA_TYPE_TIME_SYNC       = 0x12,  /* GW → ED: Time sync (broadcast) */
-    EMIC_LORA_TYPE_GROUP_SET       = 0x13   /* GW → ED: Set group membership */
+    EMIC_LORA_TYPE_GROUP_SET       = 0x13,  /* GW → ED: Set group membership */
+
+    /* Backbone Mesh (Gateway-only, requires GATEWAY_BUILD=1) */
+    EMIC_LORA_TYPE_GW_ALARM_RELAY  = 0x20   /* GW → GW: Relay alarm between gateways */
 } emic_lora_type_t;
 
 /* Protocol version (2-bit field in ver_type byte) */

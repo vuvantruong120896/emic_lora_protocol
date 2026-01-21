@@ -28,9 +28,10 @@ Includes
 ***********************************************************************************************************************/
 #include "r_cg_macrodriver.h"
 #include "r_cg_userdefine.h"
-#include "Config_PORT.h"
-#include "Config_INTC.h"
-#include "Config_RTC.h"
+#include "../Config_PORT/Config_PORT.h"
+#include "../Config_INTC/Config_INTC.h"
+#include "../Config_RTC/Config_RTC.h"
+#include "../Config_WDT/Config_WDT.h"
 #include "r_cg_sau_common.h"
 #include "r_cg_uarta_common.h"
 #include "r_cg_tau_common.h"
@@ -70,4 +71,5 @@ void R_Systeminit(void)
     R_ITL_Create();
     R_Config_INTC_Create();
     R_Config_RTC_Create();
+    R_Config_WDT_Create();
 }

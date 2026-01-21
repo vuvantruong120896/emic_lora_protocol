@@ -300,19 +300,19 @@ void alarm_service_on_tick_halfsec(void)
      */
     if ((s_local_alarm != 0U) || (s_remote_alarm != 0U))
     {
-        /* LEDs during alarm: red blinks every 0.5s, green reflects remote alarm. */
-        s_alarm_led_phase_halfsec ^= 1U;
-        led_set(LED_ID_RED, s_alarm_led_phase_halfsec);
+        /* LEDs during alarm: solid red per LED_PATTERN_SOLID_RED, green reflects remote alarm. */
+        led_set(LED_ID_RED, 1U);
         led_set(LED_ID_GREEN, s_remote_alarm);
         s_normal_led_phase_halfsec = 0U;
         s_status_led_phase_halfsec = 0U;
+        s_alarm_led_phase_halfsec = 0U;
     }
     else
     {
         /* Status LEDs (priority order): JOINING > JOIN_SUCCESS > PREJOIN_TEST > TEST > FAULT > LOW_BATT > OFFLINE > NORMAL */
         if (s_joining != 0U)
         {
-            /* Join mode: green toggles every 0.5s, red off. */
+            /* Join mode: fast green blink (LED_PATTERN_FAST_GREEN_BLINK: 500ms on/off). */
             s_status_led_phase_halfsec ^= 1U;
             led_set(LED_ID_RED, 0U);
             led_set(LED_ID_GREEN, s_status_led_phase_halfsec);
@@ -375,7 +375,7 @@ void alarm_service_on_tick_halfsec(void)
         }
         else if (s_offline != 0U)
         {
-            /* Offline: red slow blink 0.5s ON every 2s. */
+            /* Offline: slow red blink (LED_PATTERN_SLOW_RED_BLINK: 500ms on, 1500ms off = 2s cycle). */
             s_status_led_phase_halfsec++;
             if (s_status_led_phase_halfsec >= 4U)
             {
@@ -387,7 +387,7 @@ void alarm_service_on_tick_halfsec(void)
         }
         else
         {
-            /* Normal heartbeat LED: green ON for 1 tick every 60s. */
+            /* Normal heartbeat: slow green blink (LED_PATTERN_SLOW_GREEN_BLINK: 500ms on, 59.5s off). */
             s_normal_led_phase_halfsec++;
             if (s_normal_led_phase_halfsec >= 120U)
             {

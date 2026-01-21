@@ -25,9 +25,12 @@
 #include "../config/system_config.h"
 
 #include "../utils/log_control.h"
+#include "../utils/error_codes.h"
+#include "../utils/error_stats.h"
 
 #include "../drv/store/nv_store.h"
 #include "../protocol/emic_lora_protocol.h"
+#include "../protocol/emic_lora_crypto.h"
 
 /* ===== Timing base =====
  * RTC constant-period ISR increments wakeup counter every 0.5s.
@@ -1209,6 +1212,7 @@ void lora_mac_run(void)
             {
                 if ((s_ack_attempts_max != 0U) && (s_ack_attempts >= s_ack_attempts_max) && (now2 >= s_ack_retry_due_halfsec))
                 {
+                    error_stats_record(ERR_NO_ACK);
                     ack_clear();
                     s_req_heartbeat = 0U;
                 }
@@ -1494,20 +1498,36 @@ void lora_mac_run(void)
                                         /* Apply GW time if valid. */
                                         mac_try_apply_time_rtc(time_rtc_s);
 
-                                        /* Derive K1 (operational key) from K0 and NetID/short_addr.
-                                         * NOTE: current implementation uses a simple XOR placeholder; production should use a proper KDF.
+                                        /* Derive K1 from K0 using AES-CMAC(K0, join_nonce || net_id)
+                                         * join_nonce is 6-byte random value from JOIN_ACCEPT frame
+                                         * K1 provides forward secrecy and session-specific encryption
                                          */
                                         {
-                                            uint8_t i;
-                                            memcpy(s_key_k1, s_key_k0, 16);
-                                            for (i = 0; i < 6; i++)
+                                            uint8_t join_nonce[6];
+                                            /* Extract join_nonce from JOIN_ACCEPT payload (bytes 0-5) */
+                                            if (fr.len >= 6)
                                             {
-                                                s_key_k1[i] ^= s_pan_id[i];
+                                                memcpy(join_nonce, fr.payload, 6);
                                             }
-                                            s_key_k1[6] ^= (uint8_t)(assigned_addr >> 8);
-                                            s_key_k1[7] ^= (uint8_t)(assigned_addr & 0xFFU);
-                                            nv_store_write_key_k1(s_key_k1);
-                                            s_current_key_id = 1;
+                                            else
+                                            {
+                                                /* Fallback: use assigned_addr as join_nonce seed */
+                                                memset(join_nonce, 0, 6);
+                                                join_nonce[0] = (uint8_t)(assigned_addr >> 8);
+                                                join_nonce[1] = (uint8_t)(assigned_addr & 0xFFU);
+                                            }
+
+                                            /* Derive K1 = AES-CMAC(K0, join_nonce || net_id) */
+                                            if (emic_lora_derive_k1(s_key_k0, join_nonce, s_pan_id, s_key_k1) != 0)
+                                            {
+                                                nv_store_write_key_k1(s_key_k1);
+                                                s_current_key_id = 1;
+                                            }
+                                            else
+                                            {
+                                                /* K1 derivation failed, fall back to K0 */
+                                                s_current_key_id = 0;
+                                            }
                                         }
 
                                         s_joined = 1U;
@@ -1725,6 +1745,14 @@ void lora_mac_run(void)
                  * We do not automatically retry because the last frame isn't buffered.
                  * Higher layers may retry according to MAC policy.
                  */
+                if (rev == RADIO_EVENT_TIMEOUT)
+                {
+                    error_stats_record(ERR_TX_TIMEOUT);
+                }
+                else
+                {
+                    error_stats_record(ERR_RADIO_HANG);
+                }
                 s_tx_inflight = 0U;
                 s_tx_includes_fcnt = 0U;
                 s_state = MAC_STATE_IDLE;

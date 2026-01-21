@@ -53,9 +53,10 @@ Macro definitions
  */
 
 /* Symbolic name */
+#define BUZZER_BOOT_PIN        2,6
+#define LED_GREEN_PIN        2,0
 #define LED_RED_PIN        13,0
 #define RADIO_RESET_PIN        5,1
-#define BUZZER_BOOT_PIN        2,6
 #define RADIO_ANT_SW_PIN        1,7
 #define DEBUG_UARTA1_TX_PIN        12,0
 #define RADIO_BUSY_PIN        1,6
@@ -64,7 +65,6 @@ Macro definitions
 #define RADIO_MOSI_PIN        1,3
 #define BUZZER_PIN        3,1
 #define BUTTON_PIN        7,4
-#define LED_GREEN_PIN        2,0
 #define RADIO_DIO_1_PIN        13,7
 #define RADIO_SS_PIN        1,1
 

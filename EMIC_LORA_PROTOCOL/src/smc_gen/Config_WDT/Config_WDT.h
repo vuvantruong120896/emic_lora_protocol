@@ -18,34 +18,19 @@
 ***********************************************************************************************************************/
 
 /***********************************************************************************************************************
-* File Name        : r_smc_entry.h
-* Version          : 1.0.40
+* File Name        : Config_WDT.h
+* Component Version: 1.5.0
 * Device(s)        : R7F100GGGxFB
-* Description      : SMC platform header file..
+* Description      : This file implements device driver for Config_WDT.
 ***********************************************************************************************************************/
 
 /***********************************************************************************************************************
 Includes
 ***********************************************************************************************************************/
-#include "r_cg_macrodriver.h"
-#include "../Config_PORT/Config_PORT.h"
-#include "../Config_INTC/Config_INTC.h"
-#include "../Config_RTC/Config_RTC.h"
-#include "../Config_WDT/Config_WDT.h"
-#include "../Config_ITL000_ITL001_ITL012_ITL013/Config_ITL000_ITL001_ITL012_ITL013.h"
-#include "../Config_CSI20/Config_CSI20.h"
-#include "../Config_TAU0_0/Config_TAU0_0.h"
-#include "../Config_UARTA1/Config_UARTA1.h"
-#include "../r_pincfg/Pin.h"
-#include "r_cg_sau_common.h"
-#include "r_cg_uarta_common.h"
-#include "r_cg_tau_common.h"
-#include "r_cg_itl_common.h"
-#include "r_cg_rtc_common.h"
-#include "r_cg_userdefine.h"
+#include "r_cg_wdt.h"
 
-#ifndef SMC_ENTRY_H
-#define SMC_ENTRY_H
+#ifndef CFG_Config_WDT_H
+#define CFG_Config_WDT_H
 
 /***********************************************************************************************************************
 Macro definitions (Register bit)
@@ -62,7 +47,9 @@ Typedef definitions
 /***********************************************************************************************************************
 Global functions
 ***********************************************************************************************************************/
+void R_Config_WDT_Create(void);
+void R_Config_WDT_Restart(void);
+void R_Config_WDT_Create_UserInit(void);
 /* Start user code for function. Do not edit comment generated here */
 /* End user code. Do not edit comment generated here */
 #endif
-

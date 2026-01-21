@@ -113,7 +113,36 @@ extern const unsigned char SYSTEM_DEV_KEY[16];
 /** @brief Network shared key for downlink frame decryption (16 bytes, provisioned). */
 extern const unsigned char SYSTEM_GROUP_KEY[16];
 
-/** @brief Message Integrity Code length in bytes (8 bytes = 64-bit MIC). */
-#define SYSTEM_MIC_LEN                  (8U)
+/** @brief Message Integrity Code length in bytes (4 bytes for V2.0 AES-CCM). */
+#define SYSTEM_MIC_LEN                  (4U)
+
+/*******************************************************************************
+ * Build Configuration (Layer 7: Application)
+ ******************************************************************************/
+
+/**
+ * @brief Gateway build flag.
+ * @details 0 = End Device (ED) build - smoke sensor, siren, button
+ *          1 = Gateway (GW) build - backbone mesh, beacon transmission
+ *
+ * @note Set this flag based on target device type:
+ *       - ED: Basic LoRa node with sensor/actuator functionality
+ *       - GW: Gateway with backbone mesh relay capabilities
+ */
+#ifndef GATEWAY_BUILD
+#define GATEWAY_BUILD                   (0)  /* 0=ED, 1=GW */
+#endif
+
+#if GATEWAY_BUILD
+/** @brief Enable backbone mesh relay (GW only). */
+#define ENABLE_BACKBONE_MESH            (1)
+/** @brief Enable beacon transmission (GW only). */
+#define ENABLE_BEACON_TX                (1)
+#else
+/** @brief Backbone mesh disabled for ED builds. */
+#define ENABLE_BACKBONE_MESH            (0)
+/** @brief Beacon TX disabled for ED builds. */
+#define ENABLE_BEACON_TX                (0)
+#endif
 
 #endif /* SYSTEM_CONFIG_H */

@@ -10,7 +10,7 @@
  * - Key management: K0 (bootstrap), K1 (operational)
  *
  * @see NIST SP 800-38C for AES-CCM specification
- * @see emic_lora_protocol_frame_spec.md Section 8 for security details
+ * @see emic_lora_wire_format_specification.md Section 8 for security details
  *
  * @author EMIC Project
  * @version 2.0.0
@@ -99,5 +99,28 @@ uint8_t emic_lora_aes_ccm_decrypt(const uint8_t key[16],
                                    uint8_t ciphertext_len,
                                    const uint8_t received_mic[4],
                                    uint8_t *plaintext);
+
+/**
+ * @brief Derive operational key K1 from bootstrap key K0 (V2.0).
+ *
+ * @param k0[16]           Bootstrap key K0 (provisioned at manufacture)
+ * @param join_nonce[6]    Join nonce from JOIN_ACCEPT frame (random, GW-generated)
+ * @param net_id[6]        Network ID (6 bytes)
+ * @param k1_out[16]       Output: Derived operational key K1
+ *
+ * @return 1 on success, 0 on error
+ *
+ * @note
+ * - K1 derivation: K1 = AES-CMAC(K0, join_nonce || net_id)
+ * - K1 is session-specific and changes on each join
+ * - After JOIN_ACCEPTED, MAC layer switches from K0 to K1 for all frames
+ * - K1 provides forward secrecy (compromise of K1 doesn't expose K0)
+ *
+ * @see docs/emic_lora_wire_format_specification.md Section 8.3 for key management
+ */
+uint8_t emic_lora_derive_k1(const uint8_t k0[16],
+                             const uint8_t join_nonce[6],
+                             const uint8_t net_id[6],
+                             uint8_t k1_out[16]);
 
 #endif

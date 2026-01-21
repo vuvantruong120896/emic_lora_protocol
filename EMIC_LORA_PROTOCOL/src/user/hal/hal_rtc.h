@@ -168,6 +168,17 @@ uint8_t hal_rtc_int_is_pending(void);
 void hal_rtc_int_clear_flag(void);
 
 /**
+ * Consume and return number of pending RTC ticks accumulated by ISR.
+ *
+ * Returns: Number of pending ticks consumed (0-255)
+ *
+ * Notes:
+ *   - Atomic w.r.t ISR updates
+ *   - Also best-effort clears RTCIF
+ */
+uint8_t hal_rtc_consume_pending_ticks(void);
+
+/**
  * Convert RTC time (BCD) to seconds since epoch (2000-01-01 00:00:00).
  * 
  * Parameters:

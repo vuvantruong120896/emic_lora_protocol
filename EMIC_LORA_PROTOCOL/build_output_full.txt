@@ -1,0 +1,12 @@
+[CCRL] Added to PATH: C:\Renesas\e2_studio\eclipse\plugins\com.renesas.ide.supportfiles.rl78.build.ccconverter.win32.x86_64_1.0.3.v20240603-0346\ccv (renesas_cc_converter)
+[CCRL] Added to PATH: C:\Renesas\e2_studio\eclipse\plugins\com.renesas.ide.exttools.busybox.win32.x86_64_1.3.6.v20230615-0931\bin (rm.exe)
+[CCRL] make: C:\Renesas\e2_studio\eclipse\plugins\com.renesas.ide.exttools.gnumake.win32.x86_64_4.3.0.v20220121-1024\mk\make.exe
+[CCRL] config: HardwareDebug
+[CCRL] target: all + 
+make: Entering directory 'D:/Projects/Emic/LoraSafe/Core/EMIC_LORA_PROTOCOL/HardwareDebug'
+Scanning and building file: ../src/user/protocol/emic_lora_backbone.c
+Scanning and building file: ../src/user/protocol/emic_lora_protocol.c
+Scanning and building file: ../src/main.c
+D:\Projects\Emic\LoraSafe\Core\EMIC_LORA_PROTOCOL\src\smc_gen\general\r_smc_entry.h(34):E0520005:Could not open source file "Config_WDT.h"
+make: *** [src/subdir.mk:18: src/main.obj] Error 2
+make: Leaving directory 'D:/Projects/Emic/LoraSafe/Core/EMIC_LORA_PROTOCOL/HardwareDebug'

@@ -38,6 +38,31 @@ typedef enum
 } radio_event_t;
 
 /**
+ * @brief Radio state enumeration.
+ * @details Tracks the current operational state of the radio hardware.
+ *          Used for diagnostics, power management, and state machine verification.
+ *
+ * @note State transitions:
+ *   SLEEP → STDBY_RC (wakeup)
+ *   STDBY_RC → STDBY_XOSC (oscillator warmup)
+ *   STDBY_XOSC → FS (frequency synthesis)
+ *   FS → TX/RX/CAD (operation)
+ *   TX/RX/CAD → STDBY_RC (operation complete)
+ *
+ * @see docs/state_machines.md Section 5-7 for radio state machine details
+ */
+typedef enum
+{
+    RADIO_STATE_SLEEP = 0,          /**< Sleep mode (lowest power, ~1.5µA) */
+    RADIO_STATE_STDBY_RC,           /**< Standby RC mode (RC oscillator active) */
+    RADIO_STATE_STDBY_XOSC,         /**< Standby XOSC mode (crystal oscillator active) */
+    RADIO_STATE_FS,                 /**< Frequency synthesis mode */
+    RADIO_STATE_TX,                 /**< Transmit mode (TX active) */
+    RADIO_STATE_RX,                 /**< Receive mode (RX active) */
+    RADIO_STATE_CAD                 /**< Channel Activity Detection mode */
+} radio_state_t;
+
+/**
  * @brief Initialize the radio interface.
  * @details Initializes SX1262 chip (via sx1262_init) and sets up the radio event queue.
  *          Must be called once at startup before any radio operations.
@@ -99,6 +124,15 @@ uint8_t radio_get_channel(void);
  * @note Must be called from super-loop context (not from ISR).
  */
 radio_event_t radio_poll_event(void);
+
+/**
+ * @brief Get current radio state.
+ * @return Current radio_state_t value.
+ * @details Returns the current operational state of the radio hardware.
+ *          Used for diagnostics, debugging, and state verification.
+ * @note Safe to call from main loop context.
+ */
+radio_state_t radio_get_state(void);
 
 /**
  * @brief Check if radio is busy with an in-flight operation.
